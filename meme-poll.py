@@ -57,19 +57,24 @@ def new_poll(update, context):
             logging.info(f"Poll already exists")
     else:
         today = datetime.now().strftime("%d/%m/%Y")
-        new_poll_data = {
-            "date": today,
-            "chat_id": chat_id,
-            "status": "loading",
-            "created_by": from_user['id'],
-            "started_by": "",
-            "current": True,
-            'poll_id': '',
-            'winner': ''
-            }
-        polls.insert(new_poll_data)
-        output_message = f"Ya pueden cargar los memes con /new_meme. Una vez cargados, comenzá la poll escribiendo /start_poll."
-        logging.info(f"Poll created")
+        previous_poll = polls.get((Query().date == today) & (Query().chat_id == chat_id))
+        if not previous_poll:
+            new_poll_data = {
+                "date": today,
+                "chat_id": chat_id,
+                "status": "loading",
+                "created_by": from_user['id'],
+                "started_by": "",
+                "current": True,
+                'poll_id': '',
+                'winner': ''
+                }
+            polls.insert(new_poll_data)
+            output_message = f"Ya pueden cargar los memes con /new_meme. Una vez cargados, comenzá la poll escribiendo /start_poll."
+            logging.info(f"Poll created")
+        else:
+            output_message = f"{'@' + from_user['username'] or from_user['first_name']}, ya hubo una poll el día de hoy. Podrás crear una nueva mañana."
+            logging.info(f"Poll already finished for today")
 
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
