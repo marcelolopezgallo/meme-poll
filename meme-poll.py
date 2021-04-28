@@ -1,13 +1,17 @@
-import telegram, logging, os, json, time, collections
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-dir_path = os.path.dirname(os.path.realpath(__file__))
+import logging
+import os
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollAnswerHandler
 from tinydb import TinyDB, Query
 from datetime import datetime
 
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+dir_path = os.path.dirname(os.path.realpath(__file__))
+
+
 def start(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Soy el bot de la meme poll. Para comenzar con la carga de memes iniciá una poll con /new_poll. Luego, cada usuario puede cargar su meme con /new_meme. Finalmente, cuando todos los memes esten cargados, podés iniciar la poll con /start_poll")
+
 
 def receive_image(update, context):
     chat_id = update.effective_chat.id
@@ -18,30 +22,32 @@ def receive_image(update, context):
     if poll:
         user = users.get(Query().user_id == from_user['id'])
         if user:
-            poll_doc_id = poll.doc_id
-            image = polls.get((Query().poll_doc_id == poll_doc_id) & (Query().chat_id == chat_id) & (Query().participants.any(Query().user_id == from_user['id'])))
-            if not image:
-                new_image_data = {
-                    'poll_doc_id': poll_doc_id,
-                    'msg_id': message_id,
-                    'user_id': from_user['id'],
-                    'chat_id': chat_id
-                    }
-                images.insert(new_image_data)
-                users.update({'status': 'meme received'}, Query().user_id == from_user['id'])
-                output_message = f"Ok {'@' + from_user['username'] or from_user['first_name']}, meme guardado!"
-                logging.info(f"New image: {new_image_data}")
-            else:
-                output_message = f"{'@' + from_user['username'] or from_user['first_name']}, ya tenés un meme registrado para esta poll."
+            if user['status'] == "meme received":
+                output_message = f"{'@' + from_user['username'] or from_user['first_name']}, ya tenés un meme registrado para esta poll"
                 logging.info(f"Already got meme")
+            else:
+                poll_doc_id = poll.doc_id
+                image = polls.get((Query().poll_doc_id == poll_doc_id) & (Query().chat_id == chat_id) & (Query().participants.any(Query().user_id == from_user['id'])))
+                if not image:
+                    new_image_data = {
+                        'poll_doc_id': poll_doc_id,
+                        'msg_id': message_id,
+                        'user_id': from_user['id'],
+                        'chat_id': chat_id
+                        }
+                    images.insert(new_image_data)
+                    users.update({'status': 'meme received'}, Query().user_id == from_user['id'])
+                    output_message = f"Ok {'@' + from_user['username'] or from_user['first_name']}, meme guardado!"
+                    logging.info(f"New image: {new_image_data}")
+                else:
+                    output_message = f"{'@' + from_user['username'] or from_user['first_name']}, ya tenés un meme registrado para esta poll."
+                    logging.info(f"Already got meme")
         else:
             output_message = f"{'@' + from_user['username'] or from_user['first_name']}, antes de enviar la imágen debés enviar /new_meme."
             logging.info(f"No user created")
         
         context.bot.send_message(chat_id=chat_id, text=output_message)
-    else:
-        pass
-        #output_message = f"{'@' + from_user['username'] or from_user['first_name']}, no hay ninguna poll creada. Podés crear una con /new_poll"
+
 
 def new_poll(update, context):
     chat_id = update.effective_chat.id
@@ -77,6 +83,7 @@ def new_poll(update, context):
 
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
+
 def new_meme(update, context):
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
@@ -108,6 +115,7 @@ def new_meme(update, context):
     else:
         output_message = f"{'@' + from_user['username'] or from_user['first_name']}, no hay ninguna poll creada. Podés crear una con /new_poll"
     context.bot.send_message(chat_id=chat_id, text=output_message)
+
 
 def start_poll(update, context):
     chat_id = update.effective_chat.id
@@ -148,6 +156,7 @@ def start_poll(update, context):
         output_message = f"{'@' + from_user['username'] or from_user['first_name']}, no hay ninguna poll creada. Podés crear una con /new_poll"
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
+
 
 def receive_poll_answer(update, context):
     """Summarize a users poll vote"""
@@ -198,6 +207,7 @@ def poll_results(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
+
 def tiebreak(update, context):
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
@@ -233,6 +243,7 @@ def tiebreak(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
+
 def cancel_poll(update, context):
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
@@ -249,6 +260,7 @@ def cancel_poll(update, context):
         output_message = f"{'@' + from_user['username'] or from_user['first_name']}, no hay ninguna poll activa para cancelar."
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
+
 
 updater = Updater(token="1737215349:AAEbRrNJlCzBOAhPiDxjN_HfoVTXjBr06rU")
 dispatcher = updater.dispatcher
@@ -271,5 +283,3 @@ dispatcher.add_handler(PollAnswerHandler(receive_poll_answer))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
 updater.start_polling()
-
-#a comment to test git
