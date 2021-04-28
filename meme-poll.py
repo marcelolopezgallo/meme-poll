@@ -117,7 +117,7 @@ def start_poll(update, context):
             options = []
             participants = []
             for image in poll_images:
-                username = users.get(Query().user_id == image['user_id'])['username']
+                username = users.get(Query().user_id == image['user_id'])['username'] or users.get(Query().user_id == image['user_id'])['first_name']
                 options.append(username)
                 participants.append(image['user_id'])
                 context.bot.send_message(chat_id=chat_id, text=f"@{username}", reply_to_message_id=image['msg_id'])
@@ -181,7 +181,7 @@ def poll_results(update, context):
             logging.info("There were no votes")
         else:
             if len(most_voted) == 1:
-                output_message = f"El ganador fue @{users.get(Query().user_id == most_voted[0])['username']}"
+                output_message = f"El ganador fue @{users.get(Query().user_id == most_voted[0])['username'] or users.get(Query().user_id == image['user_id'])['first_name']}"
                 polls.update({'status': 'finished', 'current': False, 'winner': most_voted[0]}, doc_ids=[poll_doc_id])
             else:
                 output_message = "Empate entre {}. Iniciar desempate con /tiebreak".format(["@" + users.get(Query().user_id == participant)['username'] for participant in most_voted])
