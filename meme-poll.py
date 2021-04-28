@@ -186,10 +186,10 @@ def poll_results(update, context):
             logging.info("There were no votes")
         else:
             if len(most_voted) == 1:
-                output_message = f"El ganador fue @{users.get(Query().user_id == most_voted[0])['username'] or users.get(Query().user_id == image['user_id'])['first_name']}"
+                output_message = f"El ganador fue {'@' + users.get(Query().user_id == most_voted[0])['username'] or users.get(Query().user_id == image['user_id'])['first_name']}"
                 polls.update({'status': 'finished', 'current': False, 'winner': most_voted[0]}, doc_ids=[poll_doc_id])
             else:
-                output_message = "Empate entre {}. Iniciar desempate con /tiebreak".format(["@" + users.get(Query().user_id == participant)['username'] for participant in most_voted])
+                output_message = "Empate entre {}. Iniciar desempate con /tiebreak".format(["@" + users.get(Query().user_id == participant)['username'] or users.get(Query().user_id == participant)['first_name'] for participant in most_voted])
                 polls.update({'status': 'tied', 'current': False, 'tied_users': most_voted}, doc_ids=[poll_doc_id])
                 
     else:
