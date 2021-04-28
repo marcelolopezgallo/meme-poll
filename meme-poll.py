@@ -117,7 +117,7 @@ def start_poll(update, context):
             options = []
             participants = []
             for image in poll_images:
-                username = users.get(Query().user_id == image['user_id'])['username']
+                username = users.get(Query().user_id == image['user_id'])['username'] or users.get(Query().user_id == image['user_id'])['first_name']
                 options.append(username)
                 participants.append(image['user_id'])
                 context.bot.send_message(chat_id=chat_id, text=f"@{username}", reply_to_message_id=image['msg_id'])
