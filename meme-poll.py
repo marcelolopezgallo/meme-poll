@@ -5,7 +5,6 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollAnswerHandler
 from tinydb import TinyDB, Query
 from datetime import datetime
-from requests import request
 
 def start(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Soy el bot de la meme poll. Para comenzar con la carga de memes iniciá una poll con /new_poll. Luego, cada usuario puede cargar su meme con /new_meme. Finalmente, cuando todos los memes esten cargados, podés iniciar la poll con /start_poll")
