@@ -69,8 +69,7 @@ def new_poll(update, context):
                 "created_by": from_user['id'],
                 "started_by": "",
                 "current": True,
-                'poll_id': '',
-                'winner': ''
+                'poll_id': ''
                 }
             polls.insert(new_poll_data)
             output_message = f"Ya pueden cargar los memes con /new_meme. Una vez cargados, comenzá la poll escribiendo /start_poll."
@@ -128,9 +127,9 @@ def start_poll(update, context):
                 context.bot.send_message(chat_id=chat_id, text=f"{'@' + users.get(Query().user_id == image['user_id'])['username'] or users.get(Query().user_id == image['user_id'])['first_name']}", reply_to_message_id=image['msg_id'])
             polls.update({'status': 'started', 'started_by': from_user['username']}, doc_ids=[poll_doc_id])
             today = datetime.now().strftime("%d/%m/%Y")
-            message = context.bot.send_poll(chat_id=chat_id, question=f"Meme Poll {today}", is_anonymous=False, options=options, close_date=time.time() + POLL_TIMER)
-            context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
-            polls.update({'poll_id': message.poll.id}, doc_ids=[poll_doc_id])
+            message = context.bot.send_poll(chat_id=chat_id, question=f"Meme Poll {today}", is_anonymous=False, options=options)
+            #context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
+            polls.update({'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll_doc_id])
             payload = {
                 message.poll.id: {
                     "participants": [ {'user_id': participant, 'votes': 0} for participant in participants ],
@@ -174,6 +173,7 @@ def poll_results(update, context):
         poll_id = poll['poll_id']
         max_votes = 0
         most_voted = []
+        context.bot.stop_poll(chat_id=chat_id, message_id=poll['msg_id'])
         for participant in context.bot_data[poll_id]['participants']:
             if participant['votes'] == max_votes:
                 max_votes = participant['votes']
@@ -190,8 +190,8 @@ def poll_results(update, context):
                 polls.update({'status': 'finished', 'current': False, 'winner': most_voted[0]}, doc_ids=[poll_doc_id])
             else:
                 output_message = "Empate entre {}. Iniciar desempate con /tiebreak".format(["@" + users.get(Query().user_id == participant)['username'] or users.get(Query().user_id == participant)['first_name'] for participant in most_voted])
-                polls.update({'status': 'tied', 'current': False, 'tied_users': most_voted}, doc_ids=[poll_doc_id])
-            context.bot.unpin_chat_message(chat_id=chat_id, message_id=context.bot_data[poll_id]['message_id'])
+                polls.update({'status': 'tied', 'tied_users': most_voted}, doc_ids=[poll_doc_id])
+            #context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['msg_id'])
                 
     else:
         output_message = f"{'@' + from_user['username'] or from_user['first_name']}, no hay ninguna poll creada. Podés crear una con /new_poll"
@@ -201,10 +201,11 @@ def poll_results(update, context):
 def tiebreak(update, context):
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
-    poll = polls.get((Query().status == 'tied') & (Query().chat_id == chat_id))
+    poll = polls.get((Query().current == True) & (Query().status == 'tied') & (Query().chat_id == chat_id))
 
     if poll:
         poll_doc_id = poll.doc_id
+        poll_id = poll['poll_id']
         tiebreak_images = images.search((Query().chat_id == chat_id) & (Query().poll_doc_id == poll_doc_id) & Query().user_id.one_of(poll['tied_users']))
         options = []
         participants = []
@@ -213,21 +214,10 @@ def tiebreak(update, context):
             options.append(username)
             participants.append(image['user_id'])
             context.bot.send_message(chat_id=chat_id, text=f"{'@' + users.get(Query().user_id == image['user_id'])['username'] or users.get(Query().user_id == image['user_id'])['first_name']}", reply_to_message_id=image['msg_id'])
-        polls.update({'status': 'tied finished'}, doc_ids=[poll_doc_id])
         today = datetime.now().strftime("%d/%m/%Y")
-        message = context.bot.send_poll(chat_id=chat_id, question=f"Desempate {today}", is_anonymous=False, options=options, close_date=time.time() + POLL_TIMER)
-        context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
-        new_poll_data = {
-                "date": today,
-                "chat_id": chat_id,
-                "status": "tiebreak",
-                "created_by": "",
-                "started_by": "",
-                "current": True,
-                'poll_id': message.poll.id,
-                'winner': ''
-            }
-        polls.insert(new_poll_data)
+        message = context.bot.send_poll(chat_id=chat_id, question=f"Desempate {today}", is_anonymous=False, options=options)
+        polls.update({'status': 'tiebreak', 'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll_doc_id])
+        #context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
         payload = {
             message.poll.id: {
                 "participants": [ {'user_id': participant, 'votes': 0} for participant in participants ],
@@ -268,7 +258,6 @@ users = db.table('users')
 images = db.table('images')
 polls = db.table('polls')
 
-POLL_TIMER = 10800
 CHAT_ID_WHITELIST = [-590852642]
 
 dispatcher.add_handler(CommandHandler('start', start))
