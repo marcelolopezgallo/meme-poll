@@ -58,7 +58,10 @@ def new_poll(update, context):
     else:
         today = datetime.now().strftime("%d/%m/%Y")
         previous_poll = polls.get((Query().date == today) & (Query().chat_id == chat_id))
-        if not previous_poll:
+        if previous_poll and chat_id not in CHAT_ID_WHITELIST:
+            output_message = f"{'@' + from_user['username'] or from_user['first_name']}, ya hubo una poll el día de hoy. Podrás crear una nueva mañana."
+            logging.info(f"Poll already finished for today")
+        else:
             new_poll_data = {
                 "date": today,
                 "chat_id": chat_id,
@@ -72,9 +75,6 @@ def new_poll(update, context):
             polls.insert(new_poll_data)
             output_message = f"Ya pueden cargar los memes con /new_meme. Una vez cargados, comenzá la poll escribiendo /start_poll."
             logging.info(f"Poll created")
-        else:
-            output_message = f"{'@' + from_user['username'] or from_user['first_name']}, ya hubo una poll el día de hoy. Podrás crear una nueva mañana."
-            logging.info(f"Poll already finished for today")
 
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
@@ -251,6 +251,7 @@ images = db.table('images')
 polls = db.table('polls')
 
 POLL_TIMER = 10800
+CHAT_ID_WHITELIST = [-590852642]
 
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('new_poll', new_poll))
