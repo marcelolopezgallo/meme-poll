@@ -129,6 +129,7 @@ def start_poll(update, context):
             polls.update({'status': 'started', 'started_by': from_user['username']}, doc_ids=[poll_doc_id])
             today = datetime.now().strftime("%d/%m/%Y")
             message = context.bot.send_poll(chat_id=chat_id, question=f"Meme Poll {today}", is_anonymous=False, options=options, close_date=time.time() + POLL_TIMER)
+            context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
             polls.update({'poll_id': message.poll.id}, doc_ids=[poll_doc_id])
             payload = {
                 message.poll.id: {
@@ -173,7 +174,6 @@ def poll_results(update, context):
         poll_id = poll['poll_id']
         max_votes = 0
         most_voted = []
-        print(context.bot_data)
         for participant in context.bot_data[poll_id]['participants']:
             if participant['votes'] == max_votes:
                 max_votes = participant['votes']
@@ -191,6 +191,7 @@ def poll_results(update, context):
             else:
                 output_message = "Empate entre {}. Iniciar desempate con /tiebreak".format(["@" + users.get(Query().user_id == participant)['username'] or users.get(Query().user_id == participant)['first_name'] for participant in most_voted])
                 polls.update({'status': 'tied', 'current': False, 'tied_users': most_voted}, doc_ids=[poll_doc_id])
+            context.bot.unpin_chat_message(chat_id=chat_id, message_id=context.bot_data[poll_id]['message_id'])
                 
     else:
         output_message = f"{'@' + from_user['username'] or from_user['first_name']}, no hay ninguna poll creada. Podés crear una con /new_poll"
@@ -215,6 +216,7 @@ def tiebreak(update, context):
         polls.update({'status': 'tied finished'}, doc_ids=[poll_doc_id])
         today = datetime.now().strftime("%d/%m/%Y")
         message = context.bot.send_poll(chat_id=chat_id, question=f"Desempate {today}", is_anonymous=False, options=options, close_date=time.time() + POLL_TIMER)
+        context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
         new_poll_data = {
                 "date": today,
                 "chat_id": chat_id,
