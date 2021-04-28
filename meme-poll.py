@@ -123,7 +123,7 @@ def start_poll(update, context):
                 context.bot.send_message(chat_id=chat_id, text=f"@{username}", reply_to_message_id=image['msg_id'])
             polls.update({'status': 'started', 'started_by': from_user['username']}, doc_ids=[poll_doc_id])
             today = datetime.now().strftime("%d/%m/%Y")
-            message = context.bot.send_poll(chat_id=chat_id, question=f"Meme Poll {today}", is_anonymous=False, options=options, close_date=time.time() + 20)
+            message = context.bot.send_poll(chat_id=chat_id, question=f"Meme Poll {today}", is_anonymous=False, options=options, close_date=time.time() + POLL_TIMER)
             polls.update({'poll_id': message.poll.id}, doc_ids=[poll_doc_id])
             payload = {
                 message.poll.id: {
@@ -209,7 +209,7 @@ def tiebreak(update, context):
             context.bot.send_message(chat_id=chat_id, text=f"@{username}", reply_to_message_id=image['msg_id'])
         polls.update({'status': 'tied finished'}, doc_ids=[poll_doc_id])
         today = datetime.now().strftime("%d/%m/%Y")
-        message = context.bot.send_poll(chat_id=chat_id, question=f"Desempate {today}", is_anonymous=False, options=options, close_date=time.time() + 20)
+        message = context.bot.send_poll(chat_id=chat_id, question=f"Desempate {today}", is_anonymous=False, options=options, close_date=time.time() + POLL_TIMER)
         new_poll_data = {
                 "date": today,
                 "chat_id": chat_id,
@@ -244,6 +244,8 @@ db = TinyDB(f'{dir_path}/db/db.json')
 users = db.table('users')
 images = db.table('images')
 polls = db.table('polls')
+
+POLL_TIMER = 10800
 
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('new_poll', new_poll))
