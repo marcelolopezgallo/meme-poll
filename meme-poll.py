@@ -298,12 +298,15 @@ def cancel_poll(update, context):
 
     if poll:
         poll_doc_id = poll.doc_id
-        if poll['status'] == 'started':
-            context.bot.stop_poll(chat_id=chat_id, message_id=poll['msg_id'])
-        else:
-            polls.update({ 'status': 'cancelled', 'cancelled_by': from_user['id'], 'current': False}, doc_ids=[poll_doc_id])
         
-        output_message = f"{nickname}, la poll fue cancelada con éxito."
+        if poll['created_by'] == from_user['id']:
+            if poll['status'] == 'started':
+                context.bot.stop_poll(chat_id=chat_id, message_id=poll['msg_id'])
+            
+            polls.update({ 'status': 'cancelled', 'cancelled_by': from_user['id'], 'current': False}, doc_ids=[poll_doc_id])
+            output_message = f"{nickname}, la poll fue cancelada con éxito."
+        else:
+            output_message = f"{nickname}, la poll solo puede ser cancelada por el usuario que la haya iniciado."
     else:
         output_message = f"{nickname}, no hay ninguna poll activa para cancelar."
     
