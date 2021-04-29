@@ -109,8 +109,6 @@ def new_meme(update, context):
         poll_doc_id = poll.doc_id
         if poll['status'] == 'started':
             output_message = f"{nickname}, la poll ya inicio, no se pueden subscribir más memes."
-        elif poll['status'] == 'cancelled':
-            output_message = f"{nickname}, no hay ninguna poll creada. Podés crear una con /new_poll."
         elif poll['status'] in ['tied', 'tiebreak']:
             output_message = f"{nickname}, no se pueden subscribir nuevos memes durante el tiebreak."
         elif poll['status'] == 'loading':
@@ -213,30 +211,37 @@ def poll_results(update, context):
     if poll:
         poll_doc_id = poll.doc_id
         poll_id = poll['poll_id']
-        max_votes = 0
-        most_voted = []
-        context.bot.stop_poll(chat_id=chat_id, message_id=poll['msg_id'])
-        for participant in context.bot_data[poll_id]['participants']:
-            if participant['votes'] == max_votes:
-                max_votes = participant['votes']
-                most_voted.append(participant['user_id'])
-            elif participant['votes'] > max_votes:
-                max_votes = participant['votes']
-                most_voted = [participant['user_id']]
-        if max_votes == 0:
-            output_message = "No hubo votos"
-            polls.update({'status': 'finished', 'current': False}, doc_ids=[poll_doc_id])
-            logging.info("There were no votes")
+        if poll['status'] == 'loading':
+            output_message = f"{nickname}, la poll no se ha iniciado. Por lo tanto, no tengo resultados."
         else:
-            if len(most_voted) == 1:
-                we_have_a_winner = True
-                output_message = f"Ganador: {users.get(Query().user_id == most_voted[0])['first_name']}"
-                polls.update({'status': 'finished', 'current': False, 'winner': most_voted[0]}, doc_ids=[poll_doc_id])
+            max_votes = 0
+            most_voted = []
+            if poll['status'] == 'started':
+                context.bot.stop_poll(chat_id=chat_id, message_id=poll['msg_id'])
+
+            for participant in context.bot_data[poll_id]['participants']:
+                if participant['votes'] == max_votes:
+                    max_votes = participant['votes']
+                    most_voted.append(participant['user_id'])
+                elif participant['votes'] > max_votes:
+                    max_votes = participant['votes']
+                    most_voted = [participant['user_id']]
+
+            if max_votes == 0:
+                output_message = "No hubo votos"
+                polls.update({'status': 'finished', 'current': False}, doc_ids=[poll_doc_id])
+                logging.info("There were no votes")
             else:
-                output_message = "Empate entre {}. Iniciar desempate con /tiebreak".format([users.get(Query().user_id == participant)['first_name'] for participant in most_voted])
-                polls.update({'status': 'tied', 'tied_users': most_voted}, doc_ids=[poll_doc_id])
-        if PIN_ENABLED:
-            context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['msg_id'])
+                if len(most_voted) == 1:
+                    we_have_a_winner = True
+                    output_message = f"Ganador: {users.get(Query().user_id == most_voted[0])['first_name']}"
+                    polls.update({'status': 'finished', 'current': False, 'winner': most_voted[0]}, doc_ids=[poll_doc_id])
+                else:
+                    output_message = "Empate entre {}. Iniciar desempate con /tiebreak".format([users.get(Query().user_id == participant)['first_name'] for participant in most_voted])
+                    polls.update({'status': 'tied', 'tied_users': most_voted}, doc_ids=[poll_doc_id])
+                    
+            if PIN_ENABLED:
+                context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['msg_id'])
     else:
         output_message = f"{nickname}, no hay ninguna poll creada. Podés crear una con /new_poll"
     
