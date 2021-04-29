@@ -200,12 +200,14 @@ def receive_poll_answer(update, context):
 
 
 def poll_results(update, context):
+    we_have_a_winner = False
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
     if from_user['username']:
         nickname = '@' + from_user['username']
     else:
         nickname = from_user['first_name']
+
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
     
     if poll:
@@ -227,7 +229,8 @@ def poll_results(update, context):
             logging.info("There were no votes")
         else:
             if len(most_voted) == 1:
-                output_message = f"El ganador fue {users.get(Query().user_id == most_voted[0])['first_name']}"
+                we_have_a_winner = True
+                output_message = f"Ganador: {users.get(Query().user_id == most_voted[0])['first_name']}"
                 polls.update({'status': 'finished', 'current': False, 'winner': most_voted[0]}, doc_ids=[poll_doc_id])
             else:
                 output_message = "Empate entre {}. Iniciar desempate con /tiebreak".format([users.get(Query().user_id == participant)['first_name'] for participant in most_voted])
@@ -237,7 +240,10 @@ def poll_results(update, context):
     else:
         output_message = f"{nickname}, no hay ninguna poll creada. Podés crear una con /new_poll"
     
-    context.bot.send_message(chat_id=chat_id, text=output_message)
+    if we_have_a_winner:
+        context.bot.send_message(chat_id=chat_id, text=output_message, reply_to_message_id=images.get((Query().chat_id == chat_id) & (Query().poll_doc_id == poll_doc_id) & (Query().user_id == most_voted[0]))['msg_id'])
+    else:
+        context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
 def tiebreak(update, context):
