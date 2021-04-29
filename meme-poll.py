@@ -239,7 +239,7 @@ def poll_results(update, context):
                 else:
                     output_message = "Empate entre {}. Iniciar desempate con /tiebreak".format([users.get(Query().user_id == participant)['first_name'] for participant in most_voted])
                     polls.update({'status': 'tied', 'tied_users': most_voted}, doc_ids=[poll_doc_id])
-                    
+
             if PIN_ENABLED:
                 context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['msg_id'])
     else:
@@ -318,6 +318,30 @@ def cancel_poll(update, context):
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
+def hall_of_fame(update, context):
+    chat_id = update.effective_chat.id
+    from_user = update.message.from_user
+    if from_user['username']:
+        nickname = '@' + from_user['username']
+    else:
+        nickname = from_user['first_name']
+    finished_polls = polls.search((Query().status == 'finished') & (Query().winner.exists()) & (Query().chat_id == chat_id))
+
+    winners = []
+    for poll in finished_polls:
+        winner_index = next((index for (index, winner) in enumerate(winners) if winner["user_id"] == poll['winner']), None)
+        if isinstance(winner_index, int):
+            winners[winner_index]['total_wins'] += 1
+        else:
+            winners.append({ 'user_id': poll['winner'], 'total_wins': 1})
+    
+    output_message = "Hall of Fame\n\n"
+    for winner in winners:
+        output_message += f"{users.get((Query().user_id == winner['user_id']) & (Query().chat_id == chat_id))['first_name']}:\t{winner['total_wins']}\n"
+    
+    context.bot.send_message(chat_id=chat_id, text=output_message)
+
+
 updater = Updater(token="1737215349:AAEbRrNJlCzBOAhPiDxjN_HfoVTXjBr06rU")
 dispatcher = updater.dispatcher
 
@@ -338,6 +362,7 @@ dispatcher.add_handler(CommandHandler('start_poll', start_poll))
 dispatcher.add_handler(CommandHandler('poll_results', poll_results))
 dispatcher.add_handler(CommandHandler('tiebreak', tiebreak))
 dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
+dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(PollAnswerHandler(receive_poll_answer))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
