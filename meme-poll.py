@@ -349,8 +349,8 @@ if not os.path.exists(LOG_DIR):
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO, filename=f"{LOG_DIR}/meme-poll.log")
 
 LOCAL_CONFIG_PATH = f"{dir_path}/.local_config.json"
-bot_token = config('MEME_POLL_TOKEN')
-updater = Updater(token=bot_token)
+BOT_TOKEN = config('MEME_POLL_TOKEN')
+updater = Updater(token=BOT_TOKEN)
 dispatcher = updater.dispatcher
 
 if os.path.exists(LOCAL_CONFIG_PATH):
@@ -360,6 +360,7 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         UNLIMITED_IMAGES_WHITELIST = local_config['UNLIMITED_IMAGES_WHITELIST']
         PIN_ENABLED = local_config['PIN_ENABLED']
         ANONYMOUS_POLL = local_config['ANONYMOUS_POLL']
+        POLLING_INTERVAL = local_config['POLLING_INTERVAL']
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
@@ -381,4 +382,4 @@ dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(PollAnswerHandler(receive_poll_answer))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
-updater.start_polling()
+updater.start_polling(poll_interval=POLLING_INTERVAL)
