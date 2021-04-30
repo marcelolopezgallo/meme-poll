@@ -31,11 +31,13 @@ def receive_image(update, context):
             user = users.get((Query().user_id == from_user['id']) & (Query().chat_id == chat_id) & (Query().poll_id == poll_doc_id))
             if user:
                 if user['status'] == "waiting for meme":
+                    photo_id = update.message.photo[-1].file_id
                     new_image_data = {
                         'poll_doc_id': poll_doc_id,
                         'msg_id': message_id,
                         'user_id': from_user['id'],
-                        'chat_id': chat_id
+                        'chat_id': chat_id,
+                        'file_id': photo_id
                     }
                     images.insert(new_image_data)
                     if from_user['id'] not in UNLIMITED_IMAGES_WHITELIST:
@@ -247,6 +249,9 @@ def poll_results(update, context):
     
     if we_have_a_winner:
         context.bot.send_message(chat_id=chat_id, text=output_message, reply_to_message_id=images.get((Query().chat_id == chat_id) & (Query().poll_doc_id == poll_doc_id) & (Query().user_id == most_voted[0]))['msg_id'])
+        photo_id = images.get((Query().user_id == most_voted[0]) & (Query().poll_doc_id == poll_doc_id))['file_id']
+        photo = context.bot.get_file(photo_id).download_as_bytearray()
+        context.bot.set_chat_photo(chat_id=chat_id, photo=bytes(photo))
     else:
         context.bot.send_message(chat_id=chat_id, text=output_message)
 
@@ -340,6 +345,7 @@ def hall_of_fame(update, context):
         output_message += f"{users.get((Query().user_id == winner['user_id']) & (Query().chat_id == chat_id))['first_name']}:\t{winner['total_wins']}\n"
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
+
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
