@@ -9,10 +9,6 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollA
 from tinydb import TinyDB, Query
 from datetime import datetime
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-dir_path = os.path.dirname(os.path.realpath(__file__))
-
-
 def start(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Soy el bot de la meme poll. Para comenzar con la carga de memes inicia una poll con /new_poll. Luego, cada usuario puede cargar su meme con /new_meme. Finalmente, cuando todos los memes esten cargados, podes iniciar la poll con /start_poll")
 
@@ -345,6 +341,13 @@ def hall_of_fame(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
+dir_path = os.path.dirname(os.path.realpath(__file__))
+
+LOG_DIR = f"{dir_path}/log"
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO, filename=f"{LOG_DIR}/meme-poll.log")
+
 LOCAL_CONFIG_PATH = f"{dir_path}/.local_config.json"
 bot_token = config('MEME_POLL_TOKEN')
 updater = Updater(token=bot_token)
@@ -358,11 +361,11 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         PIN_ENABLED = local_config['PIN_ENABLED']
         ANONYMOUS_POLL = local_config['ANONYMOUS_POLL']
 
-db_dir = f"{dir_path}/db"
-if not os.path.exists(db_dir):
-    os.makedirs(db_dir)
+DB_DIR = f"{dir_path}/db"
+if not os.path.exists(DB_DIR):
+    os.makedirs(DB_DIR)
 
-db = TinyDB(f'{db_dir}/db.json')
+db = TinyDB(f'{DB_DIR}/db.json')
 users = db.table('users')
 images = db.table('images')
 polls = db.table('polls')

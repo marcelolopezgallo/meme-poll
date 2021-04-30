@@ -1,5 +1,6 @@
 /venv
 /.vscode
 /db
+/log
 .env
 .local_config.json
