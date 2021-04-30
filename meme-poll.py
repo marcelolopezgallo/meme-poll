@@ -349,7 +349,7 @@ if not os.path.exists(LOG_DIR):
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO, filename=f"{LOG_DIR}/meme-poll.log")
 
 LOCAL_CONFIG_PATH = f"{dir_path}/.local_config.json"
-BOT_TOKEN = config('MEME_POLL_TOKEN')
+BOT_TOKEN = config('BOT_TOKEN')
 updater = Updater(token=BOT_TOKEN)
 dispatcher = updater.dispatcher
 
