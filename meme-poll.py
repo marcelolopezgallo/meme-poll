@@ -1,6 +1,7 @@
 import logging
 import os
 
+from decouple import config
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollAnswerHandler
 from tinydb import TinyDB, Query
 from datetime import datetime
@@ -341,8 +342,8 @@ def hall_of_fame(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
-
-updater = Updater(token="1737215349:AAEbRrNJlCzBOAhPiDxjN_HfoVTXjBr06rU")
+bot_token = config('MEME_POLL_TOKEN')
+updater = Updater(token=bot_token)
 dispatcher = updater.dispatcher
 
 db_dir = f"{dir_path}/db"
