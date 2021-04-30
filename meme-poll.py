@@ -14,7 +14,7 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
 def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Soy el bot de la meme poll. Para comenzar con la carga de memes iniciá una poll con /new_poll. Luego, cada usuario puede cargar su meme con /new_meme. Finalmente, cuando todos los memes esten cargados, podés iniciar la poll con /start_poll")
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Soy el bot de la meme poll. Para comenzar con la carga de memes inicia una poll con /new_poll. Luego, cada usuario puede cargar su meme con /new_meme. Finalmente, cuando todos los memes esten cargados, podes iniciar la poll con /start_poll")
 
 
 def receive_image(update, context):
@@ -49,7 +49,7 @@ def receive_image(update, context):
                 else:
                     answer = False
             else:
-                output_message = f"{nickname}, antes de enviar la imágen debés enviar /new_meme."
+                output_message = f"{nickname}, antes de enviar la imagen debes enviar /new_meme."
                 logging.info(f"No user created")
         else:
             answer = False
@@ -71,7 +71,7 @@ def new_poll(update, context):
 
     if poll:
         if poll['status'] == 'loading':
-            output_message = f"Ya pueden cargar los memes con /new_meme. Una vez cargados, comenzá la poll escribiendo /start_poll."
+            output_message = f"Ya pueden cargar los memes con /new_meme. Una vez cargados, comenza la poll escribiendo /start_poll."
             logging.info("Poll en preparacion")
         elif poll['status'] == "started":
             output_message = f"Ya existe una poll en curso creada por {poll['started_by']}."
@@ -81,7 +81,7 @@ def new_poll(update, context):
         previous_polls = polls.search((Query().date == today) & (Query().chat_id == chat_id))
         ignore_poll = True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
         if ignore_poll:
-            output_message = f"{nickname}, ya hubo una poll el día de hoy. Podrás crear una nueva mañana."
+            output_message = f"{nickname}, ya hubo una poll el dia de hoy. Podras crear una nueva mañana."
             logging.info(f"Poll already finished for today")
         else:
             new_poll_data = {
@@ -94,7 +94,7 @@ def new_poll(update, context):
                 'poll_id': ''
                 }
             polls.insert(new_poll_data)
-            output_message = f"Ya pueden cargar los memes con /new_meme. Una vez cargados, comenzá la poll escribiendo /start_poll."
+            output_message = f"Ya pueden cargar los memes con /new_meme. Una vez cargados, comenza la poll escribiendo /start_poll."
             logging.info(f"Poll created")
 
     context.bot.send_message(chat_id=chat_id, text=output_message)
@@ -112,7 +112,7 @@ def new_meme(update, context):
     if poll:
         poll_doc_id = poll.doc_id
         if poll['status'] == 'started':
-            output_message = f"{nickname}, la poll ya inicio, no se pueden subscribir más memes."
+            output_message = f"{nickname}, la poll ya inicio, no se pueden subscribir mas memes."
         elif poll['status'] in ['tied', 'tiebreak']:
             output_message = f"{nickname}, no se pueden subscribir nuevos memes durante el tiebreak."
         elif poll['status'] == 'loading':
@@ -120,10 +120,10 @@ def new_meme(update, context):
 
             if user:
                 if user['status'] == 'waiting for meme':
-                    output_message = f"{nickname}, aún estoy esperando que envíes tu meme."
+                    output_message = f"{nickname}, aun estoy esperando que envies tu meme."
                     logging.info(f"Already waiting for meme: {user}")
                 elif user['status'] == "meme received":
-                    output_message = f"{nickname}, ya tenés un meme registrado para esta poll."
+                    output_message = f"{nickname}, ya tenes un meme registrado para esta poll."
                     logging.info(f"Already got meme")
             else:
                 new_user_info = {
@@ -138,7 +138,7 @@ def new_meme(update, context):
                 output_message = f"Ok {nickname}, enviame tu meme!"
                 logging.info(f"New user created: {new_user_info}")
     else:
-        output_message = f"{nickname}, no hay ninguna poll creada. Podés crear una con /new_poll"
+        output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
@@ -183,7 +183,7 @@ def start_poll(update, context):
             output_message = f"La poll ya fue iniciada por {nickname}"
             logging.info("Poll already started")
     else:
-        output_message = f"{nickname}, no hay ninguna poll creada. Podés crear una con /new_poll"
+        output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
@@ -247,7 +247,7 @@ def poll_results(update, context):
             if PIN_ENABLED:
                 context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['msg_id'])
     else:
-        output_message = f"{nickname}, no hay ninguna poll creada. Podés crear una con /new_poll"
+        output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
     
     if we_have_a_winner:
         context.bot.send_message(chat_id=chat_id, text=output_message, reply_to_message_id=images.get((Query().chat_id == chat_id) & (Query().poll_doc_id == poll_doc_id) & (Query().user_id == most_voted[0]))['msg_id'])
@@ -313,7 +313,7 @@ def cancel_poll(update, context):
                 context.bot.stop_poll(chat_id=chat_id, message_id=poll['msg_id'])
             
             polls.update({ 'status': 'cancelled', 'cancelled_by': from_user['id'], 'current': False}, doc_ids=[poll_doc_id])
-            output_message = f"{nickname}, la poll fue cancelada con éxito."
+            output_message = f"{nickname}, la poll fue cancelada con exito."
         else:
             output_message = f"{nickname}, la poll solo puede ser cancelada por el usuario que la haya iniciado."
     else:
