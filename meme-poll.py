@@ -345,7 +345,11 @@ def hall_of_fame(update, context):
 updater = Updater(token="1737215349:AAEbRrNJlCzBOAhPiDxjN_HfoVTXjBr06rU")
 dispatcher = updater.dispatcher
 
-db = TinyDB(f'{dir_path}/db/db.json')
+db_dir = f"{dir_path}/test"
+if not os.path.exists(db_dir):
+    os.makedirs(db_dir)
+
+db = TinyDB(f'{db_dir}/db.json')
 users = db.table('users')
 images = db.table('images')
 polls = db.table('polls')
