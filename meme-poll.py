@@ -1,5 +1,8 @@
+#!/usr/bin/env python
+
 import logging
 import os
+import json
 
 from decouple import config
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollAnswerHandler
@@ -342,9 +345,18 @@ def hall_of_fame(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
+LOCAL_CONFIG_PATH = f"{dir_path}/.local_config.json"
 bot_token = config('MEME_POLL_TOKEN')
 updater = Updater(token=bot_token)
 dispatcher = updater.dispatcher
+
+if os.path.exists(LOCAL_CONFIG_PATH):
+    with open(LOCAL_CONFIG_PATH) as f:
+        local_config = json.loads(f.read())
+        UNLIMITED_POLLS_WHITELIST = local_config['UNLIMITED_POLLS_WHITELIST']
+        UNLIMITED_IMAGES_WHITELIST = local_config['UNLIMITED_IMAGES_WHITELIST']
+        PIN_ENABLED = local_config['PIN_ENABLED']
+        ANONYMOUS_POLL = local_config['ANONYMOUS_POLL']
 
 db_dir = f"{dir_path}/db"
 if not os.path.exists(db_dir):
@@ -354,11 +366,6 @@ db = TinyDB(f'{db_dir}/db.json')
 users = db.table('users')
 images = db.table('images')
 polls = db.table('polls')
-
-UNLIMITED_POLLS_WHITELIST = [-590852642, 18969128]
-UNLIMITED_IMAGES_WHITELIST = [18969128]
-PIN_ENABLED = False
-ANONYMOUS_POLL = False
 
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('new_poll', new_poll))
