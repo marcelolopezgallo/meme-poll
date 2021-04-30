@@ -345,7 +345,7 @@ def hall_of_fame(update, context):
 updater = Updater(token="1737215349:AAEbRrNJlCzBOAhPiDxjN_HfoVTXjBr06rU")
 dispatcher = updater.dispatcher
 
-db_dir = f"{dir_path}/test"
+db_dir = f"{dir_path}/db"
 if not os.path.exists(db_dir):
     os.makedirs(db_dir)
 
