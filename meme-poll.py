@@ -3,9 +3,10 @@
 import logging
 import os
 import json
+import time
 
 from decouple import config
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollAnswerHandler
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollAnswerHandler, PollHandler
 from tinydb import TinyDB, Query
 from datetime import datetime
 
@@ -14,7 +15,7 @@ def start(update, context):
 
 
 def receive_image(update, context):
-    answer = True
+    enable_answer = True
     chat_id = update.effective_chat.id
     message_id = update.message.message_id
     from_user = update.message.from_user
@@ -45,16 +46,16 @@ def receive_image(update, context):
                     output_message = f"Ok {nickname}, meme guardado!"
                     logging.info(f"New image: {new_image_data}")
                 else:
-                    answer = False
+                    enable_answer = False
             else:
                 output_message = f"{nickname}, antes de enviar la imagen debes enviar /new_meme."
                 logging.info(f"No user created")
         else:
-            answer = False
+            enable_answer = False
     else:
-        answer = False
+        enable_answer = False
         
-    if answer:
+    if enable_answer:
         context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
@@ -141,6 +142,7 @@ def new_meme(update, context):
 
 
 def start_poll(update, context):
+    enable_close = False
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
     if from_user['username']:
@@ -154,147 +156,63 @@ def start_poll(update, context):
         if poll['status'] == "loading":
             poll_images = images.search((Query().chat_id == chat_id) & (Query().poll_doc_id == poll_doc_id))
             options = []
-            participants = []
             for image in poll_images:
-                username = users.get(Query().user_id == image['user_id'])['username'] or users.get(Query().user_id == image['user_id'])['first_name']
-                options.append(username)
-                participants.append(image['user_id'])
-                context.bot.send_message(chat_id=chat_id, text=f"{users.get(Query().user_id == image['user_id'])['first_name']}", reply_to_message_id=image['msg_id'])
-            polls.update({'status': 'started', 'started_by': from_user['id']}, doc_ids=[poll_doc_id])
+                first_name = users.get(Query().user_id == image['user_id'])['first_name']
+                options.append(first_name)
+                context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=image['msg_id'])
+            
             today = datetime.now().strftime("%d/%m/%Y")
-            message = context.bot.send_poll(chat_id=chat_id, question=f"Meme Poll {today}", is_anonymous=ANONYMOUS_POLL, options=options)
+            message = context.bot.send_poll(chat_id=chat_id, question=f"Meme Poll {today}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
             if PIN_ENABLED:
                 context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
-            polls.update({'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll_doc_id])
-            payload = {
-                message.poll.id: {
-                    "participants": [ {'user_id': participant, 'votes': 0} for participant in participants ],
-                    "message_id": message.message_id,
-                    "chat_id": chat_id,
-                    "answers": 0,
-                }
-            }
-            context.bot_data.update(payload)
+                logging.info(f"Poll pinned")
+            
+            polls.update({'status': 'started', 'started_by': from_user['id'], 'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll_doc_id])
             output_message = f"La poll ha sido iniciada por {nickname}"
             logging.info("Poll started")
+            enable_close = True
         elif poll['status'] == "started":
-            output_message = f"La poll ya fue iniciada por {nickname}"
+            output_message = f"La poll ya fue iniciada por {users.get((Query().user_id == poll['started_by']) & (Query().poll_id == poll_doc_id))['first_name']}"
             logging.info("Poll already started")
     else:
         output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
-
-
-def receive_poll_answer(update, context):
-    """Summarize a users poll vote"""
-    answer = update.poll_answer
-    poll_id = answer.poll_id
-    option_ids = answer.option_ids
-
-    for option in option_ids:
-        context.bot_data[poll_id]['participants'][option]['votes'] += 1
-        context.bot_data[poll_id]['answers'] += 1
-    
-    logging.info(f"New vote: {context.bot_data[poll_id]}")
-
-
-def poll_results(update, context):
-    we_have_a_winner = False
-    chat_id = update.effective_chat.id
-    from_user = update.message.from_user
-    if from_user['username']:
-        nickname = '@' + from_user['username']
-    else:
-        nickname = from_user['first_name']
-
-    poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
-    
-    if poll:
-        poll_doc_id = poll.doc_id
-        poll_id = poll['poll_id']
-        if poll['status'] == 'loading':
-            output_message = f"{nickname}, la poll no se ha iniciado. Por lo tanto, no tengo resultados."
-        else:
-            max_votes = 0
-            most_voted = []
-            if poll['status'] == 'started':
-                context.bot.stop_poll(chat_id=chat_id, message_id=poll['msg_id'])
-
-            for participant in context.bot_data[poll_id]['participants']:
-                if participant['votes'] == max_votes:
-                    max_votes = participant['votes']
-                    most_voted.append(participant['user_id'])
-                elif participant['votes'] > max_votes:
-                    max_votes = participant['votes']
-                    most_voted = [participant['user_id']]
-
-            if max_votes == 0:
-                output_message = "No hubo votos"
-                polls.update({'status': 'finished', 'current': False}, doc_ids=[poll_doc_id])
-                logging.info("There were no votes")
-            else:
-                if len(most_voted) == 1:
-                    we_have_a_winner = True
-                    output_message = f"Ganador: {users.get(Query().user_id == most_voted[0])['first_name']}"
-                    polls.update({'status': 'finished', 'current': False, 'winner': most_voted[0]}, doc_ids=[poll_doc_id])
-                else:
-                    output_message = "Empate entre {}. Iniciar desempate con /tiebreak".format([users.get(Query().user_id == participant)['first_name'] for participant in most_voted])
-                    polls.update({'status': 'tied', 'tied_users': most_voted}, doc_ids=[poll_doc_id])
-
-            if PIN_ENABLED:
-                context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['msg_id'])
-    else:
-        output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
-    
-    if we_have_a_winner:
-        context.bot.send_message(chat_id=chat_id, text=output_message, reply_to_message_id=images.get((Query().chat_id == chat_id) & (Query().poll_doc_id == poll_doc_id) & (Query().user_id == most_voted[0]))['msg_id'])
-        photo_id = images.get((Query().user_id == most_voted[0]) & (Query().poll_doc_id == poll_doc_id))['file_id']
-        photo = context.bot.get_file(photo_id).download_as_bytearray()
-        context.bot.set_chat_photo(chat_id=chat_id, photo=bytes(photo))
-    else:
-        context.bot.send_message(chat_id=chat_id, text=output_message)
-
+    if enable_close:
+        close_poll(update, context, message.message_id, poll_doc_id)
 
 def tiebreak(update, context):
-    chat_id = update.effective_chat.id
-    from_user = update.message.from_user
-    if from_user['username']:
-        nickname = '@' + from_user['username']
-    else:
-        nickname = from_user['first_name']
-    poll = polls.get((Query().current == True) & (Query().status == 'tied') & (Query().chat_id == chat_id))
+    time.sleep(2)
+    enable_close = False
+    enable_answer = False
+    poll = polls.get((Query().current == True) & (Query().status == 'tied') & (Query().poll_id == update.poll.id))
 
     if poll:
         poll_doc_id = poll.doc_id
         poll_id = poll['poll_id']
+        chat_id = poll['chat_id']
         tiebreak_images = images.search((Query().chat_id == chat_id) & (Query().poll_doc_id == poll_doc_id) & Query().user_id.one_of(poll['tied_users']))
         options = []
-        participants = []
         for image in tiebreak_images:
-            username = users.get(Query().user_id == image['user_id'])['username'] or users.get(Query().user_id == image['user_id'])['first_name']
-            options.append(username)
-            participants.append(image['user_id'])
-            context.bot.send_message(chat_id=chat_id, text=f"{users.get(Query().user_id == image['user_id'])['first_name']}", reply_to_message_id=image['msg_id'])
+            first_name = users.get(Query().user_id == image['user_id'])['first_name']
+            options.append(first_name)
+            context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=image['msg_id'])
+
         today = datetime.now().strftime("%d/%m/%Y")
-        message = context.bot.send_poll(chat_id=chat_id, question=f"Desempate {today}", is_anonymous=ANONYMOUS_POLL, options=options)
-        polls.update({'status': 'tiebreak', 'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll_doc_id])
+        message = context.bot.send_poll(chat_id=chat_id, question=f"Desempate {today}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
         if PIN_ENABLED:
             context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
-        payload = {
-            message.poll.id: {
-                "participants": [ {'user_id': participant, 'votes': 0} for participant in participants ],
-                "message_id": message.message_id,
-                "chat_id": chat_id,
-                "answers": 0,
-            }
-        }
-        context.bot_data.update(payload)
+            logging.info(f"Poll pinned")
+
+        polls.update({'status': 'tiebreak', 'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll_doc_id])
         output_message = f"Empieza el desempate!"
-    else:
-        output_message = f"{nickname}, no hay ninguna poll empatada."
+        enable_close = True
+        enable_answer = True
     
-    context.bot.send_message(chat_id=chat_id, text=output_message)
+    if enable_answer:
+        context.bot.send_message(chat_id=chat_id, text=output_message)
+    if enable_close:
+        close_poll(update, context, message.message_id, poll_doc_id)
 
 
 def cancel_poll(update, context):
@@ -312,6 +230,9 @@ def cancel_poll(update, context):
         if poll['created_by'] == from_user['id']:
             if poll['status'] == 'started':
                 context.bot.stop_poll(chat_id=chat_id, message_id=poll['msg_id'])
+                if PIN_ENABLED:
+                    context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['msg_id'])
+                    logging.info(f"Poll unpinned")
             
             polls.update({ 'status': 'cancelled', 'cancelled_by': from_user['id'], 'current': False}, doc_ids=[poll_doc_id])
             output_message = f"{nickname}, la poll fue cancelada con exito."
@@ -346,6 +267,78 @@ def hall_of_fame(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
+def close_poll(update, context, poll_message_id, poll_doc_id):
+    time.sleep(POLL_TIMER)
+    poll = polls.get(doc_id=poll_doc_id)
+    
+    if poll['status'] in ['started', 'tiebreak']:
+        chat_id = poll['chat_id']
+        today = datetime.now().strftime("%d/%m/%Y")
+        output_message = f"Fin de la Meme Poll {today}"
+        context.bot.send_message(chat_id=chat_id, text=output_message)
+        polls.update({ 'status': 'closed'}, doc_ids=[poll_doc_id])
+        
+        if PIN_ENABLED:
+            context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
+            logging.info(f"Poll unpinned")
+        context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
+        logging.info(f"Poll Stopped")
+
+
+def receive_poll_update(update, context):
+    if update.poll.is_closed:
+        poll_results(update, context)
+
+def poll_results(update, context):
+    poll_result = 'no votes'
+    enable_answer = False
+    poll = polls.get((Query().current == True) & (Query().poll_id == update.poll.id))
+
+    if poll:
+        chat_id = poll['chat_id']
+        poll_doc_id = poll.doc_id
+        poll_id = poll['poll_id']
+        if poll['status'] == 'closed':
+            enable_answer = True
+            max_votes = 0
+            most_voted = []
+
+            for participant in update.poll.options:
+                if participant['voter_count'] == max_votes:
+                    max_votes = participant['voter_count']
+                    most_voted.append(participant['text'])
+                elif participant['voter_count'] > max_votes:
+                    max_votes = participant['voter_count']
+                    most_voted = [participant['text']]
+
+            if max_votes == 0:
+                output_message = "No hubo votos"
+                polls.update({'status': 'finished', 'current': False}, doc_ids=[poll_doc_id])
+                logging.info("There were no votes")
+            else:
+                if len(most_voted) == 1:
+                    poll_result = 'winner'
+                    output_message = f"Ganador: {most_voted[0]}"
+                    polls.update({'status': 'finished', 'current': False, 'winner': users.get((Query().poll_id == poll_doc_id) & (Query().first_name == most_voted[0]))['user_id']}, doc_ids=[poll_doc_id])
+                else:
+                    poll_result = 'tied'
+                    output_message = f"Empate entre {most_voted}. Comenzando desempate..."
+                    polls.update({'status': 'tied', 'tied_users': [users.get((Query().poll_id == poll_doc_id) & (Query().first_name == u))['user_id'] for u in most_voted]}, doc_ids=[poll_doc_id])
+
+    if enable_answer:
+        if poll_result == 'winner':
+            context.bot.send_message(chat_id=chat_id, text=output_message)
+            user_id = users.get((Query().first_name == most_voted[0]) & (Query().poll_id == poll_doc_id))['user_id']
+            photo_id = images.get((Query().user_id == user_id) & (Query().poll_doc_id == poll_doc_id))['file_id']
+            photo = context.bot.get_file(photo_id).download_as_bytearray()
+            context.bot.set_chat_photo(chat_id=chat_id, photo=bytes(photo))
+            logging.info("Setting chat photo")
+        elif poll_result == 'tied':
+            context.bot.send_message(chat_id=chat_id, text=output_message)
+            tiebreak(update, context)
+        else:
+            context.bot.send_message(chat_id=chat_id, text=output_message)
+
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -356,7 +349,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 LOCAL_CONFIG_PATH = f"{dir_path}/.local_config.json"
 BOT_TOKEN = config('BOT_TOKEN')
-updater = Updater(token=BOT_TOKEN)
+updater = Updater(token=BOT_TOKEN, use_context=True)
 dispatcher = updater.dispatcher
 
 if os.path.exists(LOCAL_CONFIG_PATH):
@@ -367,6 +360,9 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         PIN_ENABLED = local_config['PIN_ENABLED']
         ANONYMOUS_POLL = local_config['ANONYMOUS_POLL']
         POLLING_INTERVAL = local_config['POLLING_INTERVAL']
+        ALLOW_MULTIPLE_ANSWERS = local_config['ALLOW_MULTIPLE_ANSWERS']
+        POLL_TIMER = local_config['POLL_TIMER']
+
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
@@ -380,12 +376,11 @@ polls = db.table('polls')
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('new_poll', new_poll))
 dispatcher.add_handler(CommandHandler('new_meme', new_meme))
-dispatcher.add_handler(CommandHandler('start_poll', start_poll))
-dispatcher.add_handler(CommandHandler('poll_results', poll_results))
-dispatcher.add_handler(CommandHandler('tiebreak', tiebreak))
+dispatcher.add_handler(CommandHandler('start_poll', start_poll, run_async=True))
+#dispatcher.add_handler(CommandHandler('tiebreak', tiebreak, run_async=True))
 dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
-dispatcher.add_handler(PollAnswerHandler(receive_poll_answer))
+dispatcher.add_handler(PollHandler(receive_poll_update, run_async=True))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
 updater.start_polling(poll_interval=POLLING_INTERVAL)
