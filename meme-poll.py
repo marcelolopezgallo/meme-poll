@@ -179,7 +179,7 @@ def start_poll(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
     if enable_close:
-        close_poll(update, context, message.message_id, poll_doc_id)
+        schedule_close(update, context, message.message_id, poll_doc_id)
 
 def tiebreak(update, context):
     time.sleep(2)
@@ -212,7 +212,7 @@ def tiebreak(update, context):
     if enable_answer:
         context.bot.send_message(chat_id=chat_id, text=output_message)
     if enable_close:
-        close_poll(update, context, message.message_id, poll_doc_id)
+        schedule_close(update, context, message.message_id, poll_doc_id)
 
 
 def cancel_poll(update, context):
@@ -267,7 +267,7 @@ def hall_of_fame(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
-def close_poll(update, context, poll_message_id, poll_doc_id):
+def schedule_close(update, context, poll_message_id, poll_doc_id):
     time.sleep(POLL_TIMER)
     poll = polls.get(doc_id=poll_doc_id)
     
@@ -277,6 +277,24 @@ def close_poll(update, context, poll_message_id, poll_doc_id):
         output_message = f"Fin de la Meme Poll {today}"
         context.bot.send_message(chat_id=chat_id, text=output_message)
         polls.update({ 'status': 'closed'}, doc_ids=[poll_doc_id])
+        
+        if PIN_ENABLED:
+            context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
+            logging.info(f"Poll unpinned")
+        context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
+        logging.info(f"Poll Stopped")
+
+def close_poll(update, context):
+    chat_id = update.effective_chat.id
+    poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
+    
+    if poll['status'] in ['started', 'tiebreak']:
+        poll_doc_id = poll.doc_id
+        poll_message_id = poll['msg_id']
+        today = datetime.now().strftime("%d/%m/%Y")
+        output_message = f"Fin de la Meme Poll {today}"
+        context.bot.send_message(chat_id=chat_id, text=output_message)
+        polls.update({'status': 'closed'}, doc_ids=[poll_doc_id])
         
         if PIN_ENABLED:
             context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
@@ -377,7 +395,7 @@ dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('new_poll', new_poll))
 dispatcher.add_handler(CommandHandler('new_meme', new_meme))
 dispatcher.add_handler(CommandHandler('start_poll', start_poll, run_async=True))
-#dispatcher.add_handler(CommandHandler('tiebreak', tiebreak, run_async=True))
+dispatcher.add_handler(CommandHandler('close_poll', close_poll))
 dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(PollHandler(receive_poll_update, run_async=True))
