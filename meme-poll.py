@@ -385,6 +385,9 @@ def clean_history(update, context):
     logging.info(f"Removing all polls in chat {chat_id} from db.")
     for doc in poll_docs:
         polls.remove(doc_ids=[doc.doc_id])
+    
+    output_message = "Se borro el historico con exito."
+    context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
