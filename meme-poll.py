@@ -368,6 +368,25 @@ def poll_results(update, context):
             context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
+def clean_history(update, context):
+    chat_id = update.effective_chat.id
+    user_docs = users.search(Query().chat_id == chat_id)
+    image_docs = images.search(Query().chat_id == chat_id)
+    poll_docs = polls.search(Query().chat_id == chat_id)
+
+    logging.info(f"Removing all users in chat {chat_id} from db.")
+    for doc in user_docs:
+        users.remove(doc_ids=[doc.doc_id])
+    
+    logging.info(f"Removing all images in chat {chat_id} from db.")
+    for doc in image_docs:
+        images.remove(doc_ids=[doc.doc_id])
+    
+    logging.info(f"Removing all polls in chat {chat_id} from db.")
+    for doc in poll_docs:
+        polls.remove(doc_ids=[doc.doc_id])
+
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 LOG_DIR = f"{dir_path}/log"
@@ -408,6 +427,7 @@ dispatcher.add_handler(CommandHandler('start_poll', start_poll, run_async=True))
 dispatcher.add_handler(CommandHandler('close_poll', close_poll))
 dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
+dispatcher.add_handler(CommandHandler('clean_history', clean_history))
 dispatcher.add_handler(PollHandler(receive_poll_update, run_async=True))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
