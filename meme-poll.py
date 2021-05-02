@@ -77,7 +77,6 @@ def new_poll(update, context):
             output_message = f"Ya existe una poll en curso creada por {poll['started_by']}."
             logging.info(f"Poll already exists")
     else:
-        is_a_new_poll = True
         today = datetime.now().strftime("%d/%m/%Y")
         previous_polls = polls.search((Query().date == today) & (Query().chat_id == chat_id))
         ignore_poll = True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
@@ -85,6 +84,7 @@ def new_poll(update, context):
             output_message = f"{nickname}, ya hubo una poll el dia de hoy. Podras crear una nueva mañana."
             logging.info(f"Poll already finished for today")
         else:
+            is_a_new_poll = True
             new_poll_data = {
                 "date": today,
                 "chat_id": chat_id,
