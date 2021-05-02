@@ -60,6 +60,7 @@ def receive_image(update, context):
 
 
 def new_poll(update, context):
+    is_a_new_poll = False
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
     if from_user['username']:
@@ -70,12 +71,13 @@ def new_poll(update, context):
 
     if poll:
         if poll['status'] == 'loading':
-            output_message = f"Ya pueden cargar los memes con /new_meme. Una vez cargados, comenza la poll escribiendo /start_poll."
+            output_message = f"Ya existe una Meme Poll abierta. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
             logging.info("Poll en preparacion")
         elif poll['status'] == "started":
             output_message = f"Ya existe una poll en curso creada por {poll['started_by']}."
             logging.info(f"Poll already exists")
     else:
+        is_a_new_poll = True
         today = datetime.now().strftime("%d/%m/%Y")
         previous_polls = polls.search((Query().date == today) & (Query().chat_id == chat_id))
         ignore_poll = True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
@@ -92,11 +94,14 @@ def new_poll(update, context):
                 "current": True,
                 'poll_id': ''
                 }
-            polls.insert(new_poll_data)
-            output_message = f"Ya pueden cargar los memes con /new_meme. Una vez cargados, comenza la poll escribiendo /start_poll."
+            poll_doc_id = polls.insert(new_poll_data)
+            output_message = f"Se abrio la Meme Poll {today}!. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
             logging.info(f"Poll created")
 
-    context.bot.send_message(chat_id=chat_id, text=output_message)
+    message = context.bot.send_message(chat_id=chat_id, text=output_message)
+    if PIN_ENABLED and is_a_new_poll:
+        context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
+        polls.update({ 'hint_msg_id': message.message_id}, doc_ids=[poll_doc_id])
 
 
 def new_meme(update, context):
@@ -154,6 +159,8 @@ def start_poll(update, context):
     if poll:
         poll_doc_id = poll.doc_id
         if poll['status'] == "loading":
+            if PIN_ENABLED:
+                context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['hint_msg_id'])
             poll_images = images.search((Query().chat_id == chat_id) & (Query().poll_doc_id == poll_doc_id))
             options = []
             for image in poll_images:
@@ -228,7 +235,10 @@ def cancel_poll(update, context):
         poll_doc_id = poll.doc_id
         
         if poll['created_by'] == from_user['id']:
-            if poll['status'] == 'started':
+            if poll['status'] == 'loading':
+                if PIN_ENABLED:
+                    context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['hint_msg_id'])
+            if poll['status'] in ['started', 'tiebreak']:
                 context.bot.stop_poll(chat_id=chat_id, message_id=poll['msg_id'])
                 if PIN_ENABLED:
                     context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['msg_id'])
