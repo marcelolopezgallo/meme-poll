@@ -192,7 +192,7 @@ def start_poll(update, context):
 def tiebreak(update, context):
     enable_close = False
     enable_answer = False
-    poll = polls.get((Query().current == True) & (Query().status == 'tied') & (Query().poll_id == update.poll.id))
+    poll = polls.get((Query().current == True) & (Query().status == 'tied') & (Query().chat_id == update.effective_chat.id ))
 
     if poll:
         poll_doc_id = poll.doc_id
@@ -380,7 +380,7 @@ def poll_results(update, context):
             logging.info("Setting chat photo")
         elif poll_result == 'tied':
             context.bot.send_message(chat_id=chat_id, text=output_message)
-            tiebreak(update, context)
+            #tiebreak(update, context)
         else:
             context.bot.send_message(chat_id=chat_id, text=output_message)
 
