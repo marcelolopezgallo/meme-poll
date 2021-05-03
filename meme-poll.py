@@ -176,7 +176,7 @@ def start_poll(update, context):
                 logging.info(f"Poll pinned")
             
             polls.update({'status': 'started', 'started_by': from_user['id'], 'started_at': time.time(),'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll_doc_id])
-            output_message = f"La poll ha sido iniciada por {nickname}"
+            output_message = f"La poll fue iniciada por {nickname} y cerrara automaticamente en {int(POLL_TIMER / 60)} min."
             logging.info("Poll started")
             enable_close = True
         elif poll['status'] == "started":
@@ -278,22 +278,33 @@ def hall_of_fame(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
-def schedule_close(update, context, poll_message_id, poll_doc_id):
-    time.sleep(POLL_TIMER)
+def schedule_close(update, context, poll_message_id, poll_doc_id):    
     poll = polls.get(doc_id=poll_doc_id)
     
     if poll['status'] in ['started', 'tiebreak']:
         chat_id = poll['chat_id']
-        today = datetime.now().strftime("%d/%m/%Y")
-        output_message = f"Fin de la Meme Poll {today}"
-        context.bot.send_message(chat_id=chat_id, text=output_message)
-        polls.update({ 'status': 'closed'}, doc_ids=[poll_doc_id])
         
-        if PIN_ENABLED:
-            context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
-            logging.info(f"Poll unpinned")
-        context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
-        logging.info(f"Poll Stopped")
+        time.sleep(FIRST_REMINDER)
+        today = datetime.now().strftime("%d/%m/%Y")
+        output_message = f"La Meme Poll {today} cierra automaticamente en {int((POLL_TIMER - FIRST_REMINDER) / 60)} min. Para cerrarla manualmente enviar /close_poll"
+        context.bot.send_message(chat_id=chat_id, text=output_message)
+        
+        poll = polls.get(doc_id=poll_doc_id)
+        if poll['status'] in ['started', 'tiebreak']:
+            time.sleep(POLL_TIMER - FIRST_REMINDER)
+            output_message = f"Fin de la Meme Poll {today}"
+            context.bot.send_message(chat_id=chat_id, text=output_message)
+            polls.update({ 'status': 'closed'}, doc_ids=[poll_doc_id])
+            
+            if PIN_ENABLED:
+                context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
+                logging.info(f"Poll unpinned")
+            context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
+            logging.info(f"Poll Stopped")
+        else:
+            logging.info("Scheduled close ignored")
+    else:
+        logging.info("Scheduled close ignored")
 
 def close_poll(update, context):
     chat_id = update.effective_chat.id
@@ -419,6 +430,8 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         POLLING_INTERVAL = local_config['POLLING_INTERVAL']
         ALLOW_MULTIPLE_ANSWERS = local_config['ALLOW_MULTIPLE_ANSWERS']
         POLL_TIMER = local_config['POLL_TIMER']
+        FIRST_REMINDER = local_config['FIRST_REMINDER']
+
 
 
 DB_DIR = f"{dir_path}/db"
