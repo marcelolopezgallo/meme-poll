@@ -70,11 +70,12 @@ def new_poll(update, context):
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
 
     if poll:
+        poll_doc_id = poll.doc_id
         if poll['status'] == 'loading':
             output_message = f"Ya existe una Meme Poll abierta. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
             logging.info("Poll en preparacion")
         elif poll['status'] == "started":
-            output_message = f"Ya existe una poll en curso creada por {poll['started_by']}."
+            output_message = f"Ya existe una poll en curso creada por {users.get((Query().user_id == poll['started_by']) & (Query().poll_id == poll_doc_id))['first_name']}."
             logging.info(f"Poll already exists")
     else:
         today = datetime.now().strftime("%d/%m/%Y")
@@ -298,19 +299,24 @@ def close_poll(update, context):
     chat_id = update.effective_chat.id
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
     
-    if poll['status'] in ['started', 'tiebreak']:
-        poll_doc_id = poll.doc_id
-        poll_message_id = poll['msg_id']
-        today = datetime.now().strftime("%d/%m/%Y")
-        output_message = f"Fin de la Meme Poll {today}"
-        context.bot.send_message(chat_id=chat_id, text=output_message)
-        polls.update({'status': 'closed'}, doc_ids=[poll_doc_id])
-        
-        if PIN_ENABLED:
-            context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
-            logging.info(f"Poll unpinned")
-        context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
-        logging.info(f"Poll Stopped")
+    if poll:
+        if poll['status'] in ['started', 'tiebreak']:
+            poll_doc_id = poll.doc_id
+            poll_message_id = poll['msg_id']
+            today = datetime.now().strftime("%d/%m/%Y")
+            output_message = f"Fin de la Meme Poll {today}"
+            polls.update({'status': 'closed'}, doc_ids=[poll_doc_id])
+            
+            if PIN_ENABLED:
+                context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
+                logging.info(f"Poll unpinned")
+
+            context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
+            logging.info(f"Poll Stopped")
+    else:
+        output_message = f"No hay ninguna poll iniciada."
+    
+    context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
 def receive_poll_update(update, context):
