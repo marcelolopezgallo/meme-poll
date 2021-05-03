@@ -441,6 +441,7 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         ALLOW_MULTIPLE_ANSWERS = local_config['ALLOW_MULTIPLE_ANSWERS']
         POLL_TIMER = local_config['POLL_TIMER']
         FIRST_REMINDER = local_config['FIRST_REMINDER']
+        READ_LATENCY = local_config['READ_LATENCY']
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
@@ -463,4 +464,4 @@ dispatcher.add_handler(CommandHandler('clean_history', clean_history))
 dispatcher.add_handler(PollHandler(receive_poll_update, run_async=True))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
-updater.start_polling(poll_interval=POLLING_INTERVAL)
+updater.start_polling(poll_interval=POLLING_INTERVAL, read_latency=READ_LATENCY)
