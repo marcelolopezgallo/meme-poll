@@ -6,7 +6,7 @@ import json
 import time
 
 from decouple import config
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollAnswerHandler, PollHandler
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollAnswerHandler, PollHandler, JobQueue
 from tinydb import TinyDB, Query
 from datetime import datetime
 
@@ -187,13 +187,13 @@ def start_poll(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
     if enable_close:
-        schedule_close(update, context, message.message_id, poll_doc_id)
+        context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll_doc_id)
+        #schedule_close(update, context, message.message_id, poll_doc_id)
 
 def tiebreak(update, context):
-    time.sleep(2)
     enable_close = False
     enable_answer = False
-    poll = polls.get((Query().current == True) & (Query().status == 'tied') & (Query().poll_id == update.poll.id))
+    poll = polls.get((Query().current == True) & (Query().status == 'tied') & (Query().chat_id == update.effective_chat.id ))
 
     if poll:
         poll_doc_id = poll.doc_id
@@ -213,14 +213,15 @@ def tiebreak(update, context):
             logging.info(f"Poll pinned")
 
         polls.update({'status': 'tiebreak', 'poll_id': message.poll.id, 'msg_id': message.message_id, 'started_at': time.time()}, doc_ids=[poll_doc_id])
-        output_message = f"Empieza el desempate!"
+        output_message = f"Desempate iniciado por {int(POLL_TIMER / 60)} min!"
         enable_close = True
         enable_answer = True
     
     if enable_answer:
         context.bot.send_message(chat_id=chat_id, text=output_message)
     if enable_close:
-        schedule_close(update, context, message.message_id, poll_doc_id)
+        context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll_doc_id)
+        #schedule_close(update, context, message.message_id, poll_doc_id)
 
 
 def cancel_poll(update, context):
@@ -278,31 +279,23 @@ def hall_of_fame(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
-def schedule_close(update, context, poll_message_id, poll_doc_id):    
+def schedule_close(context):    
+    poll_doc_id = context.job.context
     poll = polls.get(doc_id=poll_doc_id)
+    chat_id = poll['chat_id']
+    poll_message_id = poll['msg_id']
     
     if poll['status'] in ['started', 'tiebreak']:
-        chat_id = poll['chat_id']
-        
-        time.sleep(FIRST_REMINDER)
         today = datetime.now().strftime("%d/%m/%Y")
-        output_message = f"La Meme Poll {today} cierra automaticamente en {int((POLL_TIMER - FIRST_REMINDER) / 60)} min. Para cerrarla manualmente enviar /close_poll"
+        output_message = f"Fin de la Meme Poll {today}"
         context.bot.send_message(chat_id=chat_id, text=output_message)
+        polls.update({ 'status': 'closed'}, doc_ids=[poll_doc_id])
         
-        poll = polls.get(doc_id=poll_doc_id)
-        if poll['status'] in ['started', 'tiebreak']:
-            time.sleep(POLL_TIMER - FIRST_REMINDER)
-            output_message = f"Fin de la Meme Poll {today}"
-            context.bot.send_message(chat_id=chat_id, text=output_message)
-            polls.update({ 'status': 'closed'}, doc_ids=[poll_doc_id])
-            
-            if PIN_ENABLED:
-                context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
-                logging.info(f"Poll unpinned")
-            context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
-            logging.info(f"Poll Stopped")
-        else:
-            logging.info("Scheduled close ignored")
+        if PIN_ENABLED:
+            context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
+            logging.info(f"Poll unpinned")
+        context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
+        logging.info(f"Poll Stopped")
     else:
         logging.info("Scheduled close ignored")
 
@@ -368,7 +361,7 @@ def poll_results(update, context):
                     polls.update({'status': 'finished', 'current': False, 'winner': users.get((Query().poll_id == poll_doc_id) & (Query().first_name == most_voted[0]))['user_id']}, doc_ids=[poll_doc_id])
                 else:
                     poll_result = 'tied'
-                    output_message = f"Empate entre {most_voted}. Comenzando desempate..."
+                    output_message = f"Empate entre {most_voted}. Comenzar el desempate con /tiebreak"
                     polls.update({'status': 'tied', 'tied_users': [users.get((Query().poll_id == poll_doc_id) & (Query().first_name == u))['user_id'] for u in most_voted]}, doc_ids=[poll_doc_id])
 
     if enable_answer:
@@ -381,7 +374,7 @@ def poll_results(update, context):
             logging.info("Setting chat photo")
         elif poll_result == 'tied':
             context.bot.send_message(chat_id=chat_id, text=output_message)
-            tiebreak(update, context)
+            #tiebreak(update, context)
         else:
             context.bot.send_message(chat_id=chat_id, text=output_message)
 
@@ -446,8 +439,9 @@ polls = db.table('polls')
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('new_poll', new_poll))
 dispatcher.add_handler(CommandHandler('new_meme', new_meme))
-dispatcher.add_handler(CommandHandler('start_poll', start_poll, run_async=True))
+dispatcher.add_handler(CommandHandler('start_poll', start_poll))
 dispatcher.add_handler(CommandHandler('close_poll', close_poll))
+dispatcher.add_handler(CommandHandler('tiebreak', tiebreak))
 dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
