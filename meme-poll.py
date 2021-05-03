@@ -4,11 +4,12 @@ import logging
 import os
 import json
 import time
+import datetime
 
 from decouple import config
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollAnswerHandler, PollHandler, JobQueue
 from tinydb import TinyDB, Query
-from datetime import datetime
+
 
 def start(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Soy el bot de la meme poll. Para comenzar con la carga de memes inicia una poll con /new_poll. Luego, cada usuario puede cargar su meme con /new_meme. Finalmente, cuando todos los memes esten cargados, podes iniciar la poll con /start_poll")
@@ -78,7 +79,7 @@ def new_poll(update, context):
             output_message = f"Ya existe una poll en curso creada por {users.get((Query().user_id == poll['started_by']) & (Query().poll_id == poll_doc_id))['first_name']}."
             logging.info(f"Poll already exists")
     else:
-        today = datetime.now().strftime("%d/%m/%Y")
+        today = datetime.datetime.now().strftime("%d/%m/%Y")
         previous_polls = polls.search((Query().date == today) & (Query().chat_id == chat_id))
         ignore_poll = True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
         if ignore_poll:
@@ -169,7 +170,7 @@ def start_poll(update, context):
                 options.append(first_name)
                 context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=image['msg_id'])
             
-            today = datetime.now().strftime("%d/%m/%Y")
+            today = datetime.datetime.now().strftime("%d/%m/%Y")
             message = context.bot.send_poll(chat_id=chat_id, question=f"Meme Poll {today}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
             if PIN_ENABLED:
                 context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
@@ -187,6 +188,7 @@ def start_poll(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
     if enable_close:
+        context.job_queue.run_once(first_reminder, FIRST_REMINDER, context=poll_doc_id)
         context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll_doc_id)
         #schedule_close(update, context, message.message_id, poll_doc_id)
 
@@ -206,7 +208,7 @@ def tiebreak(update, context):
             options.append(first_name)
             context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=image['msg_id'])
 
-        today = datetime.now().strftime("%d/%m/%Y")
+        today = datetime.datetime.now().strftime("%d/%m/%Y")
         message = context.bot.send_poll(chat_id=chat_id, question=f"Desempate {today}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
         if PIN_ENABLED:
             context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
@@ -220,6 +222,7 @@ def tiebreak(update, context):
     if enable_answer:
         context.bot.send_message(chat_id=chat_id, text=output_message)
     if enable_close:
+        context.job_queue.run_once(first_reminder, FIRST_REMINDER, context=poll_doc_id)
         context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll_doc_id)
         #schedule_close(update, context, message.message_id, poll_doc_id)
 
@@ -286,7 +289,7 @@ def schedule_close(context):
     poll_message_id = poll['msg_id']
     
     if poll['status'] in ['started', 'tiebreak']:
-        today = datetime.now().strftime("%d/%m/%Y")
+        today = datetime.datetime.now().strftime("%d/%m/%Y")
         output_message = f"Fin de la Meme Poll {today}"
         context.bot.send_message(chat_id=chat_id, text=output_message)
         polls.update({ 'status': 'closed'}, doc_ids=[poll_doc_id])
@@ -307,7 +310,7 @@ def close_poll(update, context):
         if poll['status'] in ['started', 'tiebreak']:
             poll_doc_id = poll.doc_id
             poll_message_id = poll['msg_id']
-            today = datetime.now().strftime("%d/%m/%Y")
+            today = datetime.datetime.now().strftime("%d/%m/%Y")
             output_message = f"Fin de la Meme Poll {today}"
             polls.update({'status': 'closed'}, doc_ids=[poll_doc_id])
             
@@ -401,6 +404,20 @@ def clean_history(update, context):
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
+def first_reminder(context):
+    poll_doc_id = context.job.context
+    poll = polls.get(doc_id=poll_doc_id)
+    chat_id = poll['chat_id']
+    today = datetime.datetime.now().strftime("%d/%m/%Y")
+
+    if poll['status'] == 'started':
+        output_message = f"La Meme Poll {today} finaliza en {int((POLL_TIMER - FIRST_REMINDER) / 60)} min."
+    elif poll['status'] == 'tiebreak':
+        output_message = f"El desempate finaliza en {int((POLL_TIMER - FIRST_REMINDER) / 60)} min."
+
+    context.bot.send_message(chat_id=chat_id, text=output_message)
+
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 LOG_DIR = f"{dir_path}/log"
@@ -424,8 +441,7 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         ALLOW_MULTIPLE_ANSWERS = local_config['ALLOW_MULTIPLE_ANSWERS']
         POLL_TIMER = local_config['POLL_TIMER']
         FIRST_REMINDER = local_config['FIRST_REMINDER']
-
-
+        READ_LATENCY = local_config['READ_LATENCY']
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
@@ -448,4 +464,4 @@ dispatcher.add_handler(CommandHandler('clean_history', clean_history))
 dispatcher.add_handler(PollHandler(receive_poll_update, run_async=True))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
-updater.start_polling(poll_interval=POLLING_INTERVAL)
+updater.start_polling(poll_interval=POLLING_INTERVAL, read_latency=READ_LATENCY)
