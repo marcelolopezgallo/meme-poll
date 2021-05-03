@@ -188,6 +188,7 @@ def start_poll(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
     if enable_close:
+        context.job_queue.run_once(first_reminder, FIRST_REMINDER, context=poll_doc_id)
         context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll_doc_id)
         #schedule_close(update, context, message.message_id, poll_doc_id)
 
@@ -221,6 +222,7 @@ def tiebreak(update, context):
     if enable_answer:
         context.bot.send_message(chat_id=chat_id, text=output_message)
     if enable_close:
+        context.job_queue.run_once(first_reminder, FIRST_REMINDER, context=poll_doc_id)
         context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll_doc_id)
         #schedule_close(update, context, message.message_id, poll_doc_id)
 
@@ -402,6 +404,20 @@ def clean_history(update, context):
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
+def first_reminder(context):
+    poll_doc_id = context.job.context
+    poll = polls.get(doc_id=poll_doc_id)
+    chat_id = poll['chat_id']
+    today = datetime.datetime.now().strftime("%d/%m/%Y")
+
+    if poll['status'] == 'started':
+        output_message = f"La Meme Poll {today} finaliza en {int((POLL_TIMER - FIRST_REMINDER) / 60)} min."
+    elif poll['status'] == 'tiebreak':
+        output_message = f"El desempate finaliza en {int((POLL_TIMER - FIRST_REMINDER) / 60)} min."
+
+    context.bot.send_message(chat_id=chat_id, text=output_message)
+
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 LOG_DIR = f"{dir_path}/log"
@@ -425,8 +441,6 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         ALLOW_MULTIPLE_ANSWERS = local_config['ALLOW_MULTIPLE_ANSWERS']
         POLL_TIMER = local_config['POLL_TIMER']
         FIRST_REMINDER = local_config['FIRST_REMINDER']
-
-
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
