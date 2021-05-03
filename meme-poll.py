@@ -190,7 +190,6 @@ def start_poll(update, context):
         schedule_close(update, context, message.message_id, poll_doc_id)
 
 def tiebreak(update, context):
-    time.sleep(2)
     enable_close = False
     enable_answer = False
     poll = polls.get((Query().current == True) & (Query().status == 'tied') & (Query().poll_id == update.poll.id))
@@ -213,7 +212,7 @@ def tiebreak(update, context):
             logging.info(f"Poll pinned")
 
         polls.update({'status': 'tiebreak', 'poll_id': message.poll.id, 'msg_id': message.message_id, 'started_at': time.time()}, doc_ids=[poll_doc_id])
-        output_message = f"Empieza el desempate!"
+        output_message = f"Desempate iniciado por {int(POLL_TIMER / 60)} min!"
         enable_close = True
         enable_answer = True
     
@@ -448,6 +447,7 @@ dispatcher.add_handler(CommandHandler('new_poll', new_poll))
 dispatcher.add_handler(CommandHandler('new_meme', new_meme))
 dispatcher.add_handler(CommandHandler('start_poll', start_poll, run_async=True))
 dispatcher.add_handler(CommandHandler('close_poll', close_poll))
+dispatcher.add_handler(CommandHandler('tiebreak', tiebreak))
 dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
