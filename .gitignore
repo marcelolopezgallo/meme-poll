@@ -4,3 +4,4 @@
 /log
 .env
 .local_config.json
+deploy.sh
