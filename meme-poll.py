@@ -175,7 +175,7 @@ def start_poll(update, context):
                 context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
                 logging.info(f"Poll pinned")
             
-            polls.update({'status': 'started', 'started_by': from_user['id'], 'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll_doc_id])
+            polls.update({'status': 'started', 'started_by': from_user['id'], 'started_at': time.time(),'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll_doc_id])
             output_message = f"La poll ha sido iniciada por {nickname}"
             logging.info("Poll started")
             enable_close = True
@@ -212,7 +212,7 @@ def tiebreak(update, context):
             context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
             logging.info(f"Poll pinned")
 
-        polls.update({'status': 'tiebreak', 'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll_doc_id])
+        polls.update({'status': 'tiebreak', 'poll_id': message.poll.id, 'msg_id': message.message_id, 'started_at': time.time()}, doc_ids=[poll_doc_id])
         output_message = f"Empieza el desempate!"
         enable_close = True
         enable_answer = True
@@ -322,6 +322,7 @@ def close_poll(update, context):
 def receive_poll_update(update, context):
     if update.poll.is_closed:
         poll_results(update, context)
+
 
 def poll_results(update, context):
     poll_result = 'no votes'
