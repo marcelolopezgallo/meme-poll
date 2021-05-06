@@ -369,7 +369,7 @@ def poll_results(update, context):
 
     if enable_answer:
         if poll_result == 'winner':
-            context.bot.send_message(chat_id=chat_id, text=output_message)
+            context.bot.send_message(chat_id=chat_id, text=output_message, reply_to_message_id=poll['msg_id'])
             user_id = users.get((Query().first_name == most_voted[0]) & (Query().poll_id == poll_doc_id))['user_id']
             photo_id = images.get((Query().user_id == user_id) & (Query().poll_doc_id == poll_doc_id))['file_id']
             photo = context.bot.get_file(photo_id).download_as_bytearray()
