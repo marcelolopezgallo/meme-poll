@@ -7,7 +7,7 @@ import time
 import datetime
 
 from decouple import config
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollAnswerHandler, PollHandler, JobQueue
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollHandler, JobQueue
 from tinydb import TinyDB, Query
 
 
@@ -327,6 +327,7 @@ def close_poll(update, context):
 
 
 def receive_poll_update(update, context):
+    print(update)
     if update.poll.is_closed:
         poll_results(update, context)
 
@@ -377,7 +378,6 @@ def poll_results(update, context):
             logging.info("Setting chat photo")
         elif poll_result == 'tied':
             context.bot.send_message(chat_id=chat_id, text=output_message)
-            #tiebreak(update, context)
         else:
             context.bot.send_message(chat_id=chat_id, text=output_message)
 
@@ -461,7 +461,7 @@ dispatcher.add_handler(CommandHandler('tiebreak', tiebreak))
 dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
-dispatcher.add_handler(PollHandler(receive_poll_update, run_async=True))
+dispatcher.add_handler(PollHandler(receive_poll_update))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
 updater.start_polling(poll_interval=POLLING_INTERVAL, read_latency=READ_LATENCY)
