@@ -384,23 +384,28 @@ def poll_results(update, context):
 
 def clean_history(update, context):
     chat_id = update.effective_chat.id
-    user_docs = users.search(Query().chat_id == chat_id)
-    image_docs = images.search(Query().chat_id == chat_id)
-    poll_docs = polls.search(Query().chat_id == chat_id)
 
-    logging.info(f"Removing all users in chat {chat_id} from db.")
-    for doc in user_docs:
-        users.remove(doc_ids=[doc.doc_id])
-    
-    logging.info(f"Removing all images in chat {chat_id} from db.")
-    for doc in image_docs:
-        images.remove(doc_ids=[doc.doc_id])
-    
-    logging.info(f"Removing all polls in chat {chat_id} from db.")
-    for doc in poll_docs:
-        polls.remove(doc_ids=[doc.doc_id])
-    
-    output_message = "Se borro el historico con exito."
+    if update.message.from_user.id in CLEAN_HISTORY_ALLOWLIST:    
+        user_docs = users.search(Query().chat_id == chat_id)
+        image_docs = images.search(Query().chat_id == chat_id)
+        poll_docs = polls.search(Query().chat_id == chat_id)
+
+        logging.info(f"Removing all users in chat {chat_id} from db.")
+        for doc in user_docs:
+            users.remove(doc_ids=[doc.doc_id])
+        
+        logging.info(f"Removing all images in chat {chat_id} from db.")
+        for doc in image_docs:
+            images.remove(doc_ids=[doc.doc_id])
+        
+        logging.info(f"Removing all polls in chat {chat_id} from db.")
+        for doc in poll_docs:
+            polls.remove(doc_ids=[doc.doc_id])
+        
+        output_message = "Se borro el historico con exito."
+    else:
+        output_message = "Esta funcionalidad no está permitida para tu usuario."
+
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
@@ -442,6 +447,7 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         POLL_TIMER = local_config['POLL_TIMER']
         FIRST_REMINDER = local_config['FIRST_REMINDER']
         READ_LATENCY = local_config['READ_LATENCY']
+        CLEAN_HISTORY_ALLOWLIST = local_config['CLEAN_HISTORY_ALLOWLIST']
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
