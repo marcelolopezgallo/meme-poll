@@ -9,6 +9,7 @@ import datetime
 from decouple import config
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollHandler, PollAnswerHandler
 from tinydb import TinyDB, Query
+from models.Utils import Utils
 
 
 def start(update, context):
@@ -20,10 +21,7 @@ def receive_image(update, context):
     chat_id = update.effective_chat.id
     message_id = update.message.message_id
     from_user = update.message.from_user
-    if from_user['username']:
-        nickname = '@' + from_user['username']
-    else:
-        nickname = from_user['first_name']
+    nickname = Utils.get_nickname(from_user)
 
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
     
@@ -64,10 +62,7 @@ def new_poll(update, context):
     is_a_new_poll = False
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
-    if from_user['username']:
-        nickname = '@' + from_user['username']
-    else:
-        nickname = from_user['first_name']
+    nickname = Utils.get_nickname(from_user)
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
 
     if poll:
@@ -110,10 +105,7 @@ def new_poll(update, context):
 def new_meme(update, context):
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
-    if from_user['username']:
-        nickname = '@' + from_user['username']
-    else:
-        nickname = from_user['first_name']
+    nickname = Utils.get_nickname(from_user)
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
     
     if poll:
@@ -159,10 +151,7 @@ def start_poll(update, context):
     enable_close = False
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
-    if from_user['username']:
-        nickname = '@' + from_user['username']
-    else:
-        nickname = from_user['first_name']
+    nickname = Utils.get_nickname(from_user)
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
     
     if poll:
@@ -237,10 +226,7 @@ def tiebreak(update, context):
 def cancel_poll(update, context):
     chat_id = update.effective_chat.id
     from_user = update.message.from_user
-    if from_user['username']:
-        nickname = '@' + from_user['username']
-    else:
-        nickname = from_user['first_name']
+    nickname = Utils.get_nickname(from_user)
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
 
     if poll:
@@ -267,12 +253,7 @@ def cancel_poll(update, context):
 
 
 def hall_of_fame(update, context):
-    chat_id = update.effective_chat.id
-    from_user = update.message.from_user
-    if from_user['username']:
-        nickname = '@' + from_user['username']
-    else:
-        nickname = from_user['first_name']
+    chat_id = update.effective_chat.id    
     finished_polls = polls.search((Query().status == 'finished') & (Query().winner.exists()) & (Query().chat_id == chat_id))
 
     winners = []
