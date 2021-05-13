@@ -283,11 +283,12 @@ def hall_of_fame(update, context):
         else:
             winners.append({ 'user_id': poll['winner'], 'total_wins': 1})
     
-    output_message = "Hall of Fame\n\n"
-    for winner in winners:
-        output_message += f"{users.get((Query().user_id == winner['user_id']) & (Query().chat_id == chat_id))['first_name']}:\t{winner['total_wins']}\n"
     
-    context.bot.send_message(chat_id=chat_id, text=output_message)
+    output_message = ""
+    for winner in sorted(winners, key = lambda i: i['total_wins'], reverse=True):
+        output_message += "{0:<10} {1}".format(users.get((Query().user_id == winner['user_id']) & (Query().chat_id == chat_id))['first_name'], winner['total_wins']) + "\n"
+    
+    context.bot.send_message(chat_id=chat_id, text="<b>Hall of Fame</b>\n\n" + "<pre>" + output_message + "</pre>", parse_mode='HTML')
 
 def schedule_close(context):    
     poll_doc_id = context.job.context
