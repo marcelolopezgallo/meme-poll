@@ -7,7 +7,7 @@ import time
 import datetime
 
 from decouple import config
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollHandler, JobQueue
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollHandler, PollAnswerHandler
 from tinydb import TinyDB, Query
 
 
@@ -89,6 +89,7 @@ def new_poll(update, context):
             is_a_new_poll = True
             new_poll_data = {
                 "date": today,
+                "week_number": datetime.datetime.now().isocalendar()[1],
                 "chat_id": chat_id,
                 "status": "loading",
                 "created_by": from_user['id'],
@@ -132,17 +133,23 @@ def new_meme(update, context):
                     output_message = f"{nickname}, ya tenes un meme registrado para esta poll."
                     logging.info(f"Already got meme")
             else:
-                new_user_info = {
-                    'chat_id': chat_id,
-                    'user_id': from_user['id'],
-                    'poll_id': poll_doc_id,
-                    'username': from_user['username'],
-                    'first_name': from_user['first_name'],
-                    'status': 'waiting for meme'
-                    }
-                users.insert(new_user_info)
-                output_message = f"Ok {nickname}, enviame tu meme!"
-                logging.info(f"New user created: {new_user_info}")
+                week_number = datetime.datetime.now().isocalendar()[1]
+                user_is_banned = banned_users.get((Query().user_id == from_user['id']) & (Query().week_number == week_number) & (Query().chat_id == chat_id))
+                
+                if user_is_banned:
+                    output_message = f"{nickname}, fuiste blockeado por esta semana por {user_is_banned['reason']}."
+                else:
+                    new_user_info = {
+                        'chat_id': chat_id,
+                        'user_id': from_user['id'],
+                        'poll_id': poll_doc_id,
+                        'username': from_user['username'],
+                        'first_name': from_user['first_name'],
+                        'status': 'waiting for meme'
+                        }
+                    users.insert(new_user_info)
+                    output_message = f"Ok {nickname}, enviame tu meme!"
+                    logging.info(f"New user created: {new_user_info}")
     else:
         output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
     context.bot.send_message(chat_id=chat_id, text=output_message)
@@ -327,9 +334,43 @@ def close_poll(update, context):
 
 
 def receive_poll_update(update, context):
-    print(update)
     if update.poll.is_closed:
         poll_results(update, context)
+
+def receive_poll_answer(update, context):
+    poll_id = update.poll_answer.poll_id
+    poll = polls.get(Query().poll_id == poll_id)
+    
+    if poll:
+        poll_images = images.search((Query().chat_id == poll['chat_id']) & (Query().poll_doc_id == poll.doc_id))
+        voter_id = update.poll_answer.user.id
+        voter_name = users.get((Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))['first_name']
+        voted_option = update.poll_answer.option_ids[0]
+        
+        if poll_images[voted_option]['user_id'] == voter_id:
+            users.update({'autovote': True}, (Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
+            
+            week_number = datetime.datetime.now().isocalendar()[1]
+            polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number))
+            autovote_count = 0
+            for p in polls_this_week:
+                u = users.get((Query().user_id == voter_id) & (Query().poll_id == p.doc_id))
+                if u and 'autovote' in u:
+                    autovote_count += 1
+            
+            if autovote_count < MAX_AUTOVOTES_PER_WEEK:
+                output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
+            else:
+                output_message = f"{voter_name}, consumiste los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
+                blocked_user_data = {
+                    'user_id': voter_id,
+                    'chat_id': poll['chat_id'],
+                    'week_number': week_number,
+                    'reason': 'superar limite de autovotos'
+                }
+                banned_users.insert(blocked_user_data)
+
+        context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
 
 
 def poll_results(update, context):
@@ -389,6 +430,7 @@ def clean_history(update, context):
         user_docs = users.search(Query().chat_id == chat_id)
         image_docs = images.search(Query().chat_id == chat_id)
         poll_docs = polls.search(Query().chat_id == chat_id)
+        banned_users_docs = banned_users.search(Query().chat_id == chat_id)
 
         logging.info(f"Removing all users in chat {chat_id} from db.")
         for doc in user_docs:
@@ -401,6 +443,10 @@ def clean_history(update, context):
         logging.info(f"Removing all polls in chat {chat_id} from db.")
         for doc in poll_docs:
             polls.remove(doc_ids=[doc.doc_id])
+        
+        logging.info(f"Removing all banned users in chat {chat_id} from db.")
+        for doc in banned_users_docs:
+            banned_users.remove(doc_ids=[doc.doc_id])
         
         output_message = "Se borro el historico con exito."
     else:
@@ -448,6 +494,7 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         FIRST_REMINDER = local_config['FIRST_REMINDER']
         READ_LATENCY = local_config['READ_LATENCY']
         CLEAN_HISTORY_ALLOWLIST = local_config['CLEAN_HISTORY_ALLOWLIST']
+        MAX_AUTOVOTES_PER_WEEK = local_config['MAX_AUTOVOTES_PER_WEEK']
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
@@ -457,6 +504,7 @@ db = TinyDB(f'{DB_DIR}/db.json')
 users = db.table('users')
 images = db.table('images')
 polls = db.table('polls')
+banned_users = db.table('banned_users')
 
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('new_poll', new_poll))
@@ -468,6 +516,7 @@ dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
 dispatcher.add_handler(PollHandler(receive_poll_update))
+dispatcher.add_handler(PollAnswerHandler(receive_poll_answer))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
 updater.start_polling(poll_interval=POLLING_INTERVAL, read_latency=READ_LATENCY)
