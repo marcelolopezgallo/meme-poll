@@ -5,3 +5,4 @@
 .env
 .local_config.json
 deploy.sh
+/scripts/__pycache__
