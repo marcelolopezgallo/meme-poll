@@ -64,38 +64,42 @@ def new_poll(update, context):
     from_user = update.message.from_user
     nickname = Utils.get_nickname(from_user)
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
+    day = now = datetime.datetime.now().strftime("%A")
 
-    if poll:
-        poll_doc_id = poll.doc_id
-        if poll['status'] == 'loading':
-            output_message = f"Ya existe una Meme Poll abierta. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
-            logging.info("Poll en preparacion")
-        elif poll['status'] == "started":
-            output_message = f"Ya existe una poll en curso creada por {users.get((Query().user_id == poll['started_by']) & (Query().poll_id == poll_doc_id))['first_name']}."
-            logging.info(f"Poll already exists")
-    else:
-        today = datetime.datetime.now().strftime("%d/%m/%Y")
-        previous_polls = polls.search((Query().date == today) & (Query().chat_id == chat_id))
-        ignore_poll = True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
-        if ignore_poll:
-            output_message = f"{nickname}, ya hubo una poll el dia de hoy. Podras crear una nueva mañana."
-            logging.info(f"Poll already finished for today")
+    if day != CHAMPIONS_POLL_DAY:
+        if poll:
+            poll_doc_id = poll.doc_id
+            if poll['status'] == 'loading':
+                output_message = f"Ya existe una Meme Poll abierta. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
+                logging.info("Poll en preparacion")
+            elif poll['status'] == "started":
+                output_message = f"Ya existe una poll en curso creada por {users.get((Query().user_id == poll['started_by']) & (Query().poll_id == poll_doc_id))['first_name']}."
+                logging.info(f"Poll already exists")
         else:
-            is_a_new_poll = True
-            new_poll_data = {
-                "date": today,
-                "week_number": datetime.datetime.now().isocalendar()[1],
-                "type": "daily",
-                "chat_id": chat_id,
-                "status": "loading",
-                "created_by": from_user['id'],
-                "started_by": "",
-                "current": True,
-                'poll_id': ''
-                }
-            poll_doc_id = polls.insert(new_poll_data)
-            output_message = f"Se abrio la Meme Poll {today}!. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
-            logging.info(f"Poll created")
+            today = datetime.datetime.now().strftime("%d/%m/%Y")
+            previous_polls = polls.search((Query().date == today) & (Query().chat_id == chat_id))
+            ignore_poll = True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
+            if ignore_poll:
+                output_message = f"{nickname}, ya hubo una poll el dia de hoy. Podras crear una nueva mañana."
+                logging.info(f"Poll already finished for today")
+            else:
+                is_a_new_poll = True
+                new_poll_data = {
+                    "date": today,
+                    "week_number": datetime.datetime.now().isocalendar()[1],
+                    "type": "daily",
+                    "chat_id": chat_id,
+                    "status": "loading",
+                    "created_by": from_user['id'],
+                    "started_by": "",
+                    "current": True,
+                    'poll_id': ''
+                    }
+                poll_doc_id = polls.insert(new_poll_data)
+                output_message = f"Se abrio la Meme Poll {today}!. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
+                logging.info(f"Poll created")
+    else:
+        output_message = f"{nickname}, Hoy es Domingo y los domingos es día de /champions_poll."
 
     message = context.bot.send_message(chat_id=chat_id, text=output_message)
     if PIN_ENABLED and is_a_new_poll:
@@ -508,6 +512,7 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         READ_LATENCY = local_config['READ_LATENCY']
         CLEAN_HISTORY_ALLOWLIST = local_config['CLEAN_HISTORY_ALLOWLIST']
         MAX_AUTOVOTES_PER_WEEK = local_config['MAX_AUTOVOTES_PER_WEEK']
+        CHAMPIONS_POLL_DAY = local_config['CHAMPIONS_POLL_DAY']
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
