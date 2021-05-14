@@ -64,38 +64,42 @@ def new_poll(update, context):
     from_user = update.message.from_user
     nickname = Utils.get_nickname(from_user)
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
+    day = now = datetime.datetime.now().strftime("%A")
 
-    if poll:
-        poll_doc_id = poll.doc_id
-        if poll['status'] == 'loading':
-            output_message = f"Ya existe una Meme Poll abierta. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
-            logging.info("Poll en preparacion")
-        elif poll['status'] == "started":
-            output_message = f"Ya existe una poll en curso creada por {users.get((Query().user_id == poll['started_by']) & (Query().poll_id == poll_doc_id))['first_name']}."
-            logging.info(f"Poll already exists")
-    else:
-        today = datetime.datetime.now().strftime("%d/%m/%Y")
-        previous_polls = polls.search((Query().date == today) & (Query().chat_id == chat_id))
-        ignore_poll = True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
-        if ignore_poll:
-            output_message = f"{nickname}, ya hubo una poll el dia de hoy. Podras crear una nueva mañana."
-            logging.info(f"Poll already finished for today")
+    if day != CHAMPIONS_POLL_DAY:
+        if poll:
+            poll_doc_id = poll.doc_id
+            if poll['status'] == 'loading':
+                output_message = f"Ya existe una Meme Poll abierta. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
+                logging.info("Poll en preparacion")
+            elif poll['status'] == "started":
+                output_message = f"Ya existe una poll en curso creada por {users.get((Query().user_id == poll['started_by']) & (Query().poll_id == poll_doc_id))['first_name']}."
+                logging.info(f"Poll already exists")
         else:
-            is_a_new_poll = True
-            new_poll_data = {
-                "date": today,
-                "week_number": datetime.datetime.now().isocalendar()[1],
-                "type": "daily",
-                "chat_id": chat_id,
-                "status": "loading",
-                "created_by": from_user['id'],
-                "started_by": "",
-                "current": True,
-                'poll_id': ''
-                }
-            poll_doc_id = polls.insert(new_poll_data)
-            output_message = f"Se abrio la Meme Poll {today}!. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
-            logging.info(f"Poll created")
+            today = datetime.datetime.now().strftime("%d/%m/%Y")
+            previous_polls = polls.search((Query().date == today) & (Query().chat_id == chat_id))
+            ignore_poll = True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
+            if ignore_poll:
+                output_message = f"{nickname}, ya hubo una poll el dia de hoy. Podras crear una nueva mañana."
+                logging.info(f"Poll already finished for today")
+            else:
+                is_a_new_poll = True
+                new_poll_data = {
+                    "date": today,
+                    "week_number": datetime.datetime.now().isocalendar()[1],
+                    "type": "daily",
+                    "chat_id": chat_id,
+                    "status": "loading",
+                    "created_by": from_user['id'],
+                    "started_by": "",
+                    "current": True,
+                    'poll_id': ''
+                    }
+                poll_doc_id = polls.insert(new_poll_data)
+                output_message = f"Se abrio la Meme Poll {today}!. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
+                logging.info(f"Poll created")
+    else:
+        output_message = f"{nickname}, Hoy es Domingo y los domingos es día de /champions_poll."
 
     message = context.bot.send_message(chat_id=chat_id, text=output_message)
     if PIN_ENABLED and is_a_new_poll:
@@ -196,7 +200,6 @@ def tiebreak(update, context):
 
     if poll:
         poll_doc_id = poll.doc_id
-        poll_id = poll['poll_id']
         chat_id = poll['chat_id']
         tiebreak_images = images.search((Query().chat_id == chat_id) & (Query().poll_doc_id == poll_doc_id) & Query().user_id.one_of(poll['tied_users']))
         options = []
@@ -256,13 +259,20 @@ def cancel_poll(update, context):
 def hall_of_fame(update, context):
     chat_id = update.effective_chat.id
 
-    daily_winners = Utils.count_winners(chat_id)
+    daily_winners = Utils.count_winners(chat_id, poll_type='daily')
+    weekly_winners = Utils.count_winners(chat_id, poll_type='champions')
     
     daily_message = ""
-    for winner in sorted(daily_winners, key = lambda i: i['total_wins'], reverse=True):
-        daily_message += "{0:<10} {1}".format(users.get((Query().user_id == winner['user_id']) & (Query().chat_id == chat_id))['first_name'], winner['total_wins']) + "\n"
+    if daily_winners:
+        for winner in sorted(daily_winners, key = lambda i: i['total_wins'], reverse=True):
+            daily_message += "{0:<10} {1}".format(users.get((Query().user_id == winner['user_id']) & (Query().chat_id == chat_id))['first_name'], winner['total_wins']) + "\n"
     
-    output_message = "<b>Hall of Fame</b>\n\n" + "<b>Diarias</b>\n" + "<pre>" + daily_message + "</pre>"
+    weekly_message = ""
+    if weekly_winners:
+        for winner in sorted(weekly_winners, key = lambda i: i['total_wins'], reverse=True):
+            weekly_message += "{0:<10} {1}".format(users.get((Query().user_id == winner['user_id']) & (Query().chat_id == chat_id))['first_name'], winner['total_wins']) + "\n"
+    
+    output_message = "<b>Hall of Fame</b>\n\n" + "<b>Diarias</b>\n" + "<pre>" + daily_message + "</pre>" + "\n<b>Semanales</b>\n" + "<pre>" + weekly_message + "</pre>"
     context.bot.send_message(chat_id=chat_id, text=output_message, parse_mode='HTML')
 
 def schedule_close(context):    
@@ -290,11 +300,18 @@ def close_poll(update, context):
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
     
     if poll:
+        
         if poll['status'] in ['started', 'tiebreak']:
             poll_doc_id = poll.doc_id
             poll_message_id = poll['msg_id']
-            today = datetime.datetime.now().strftime("%d/%m/%Y")
-            output_message = f"Fin de la Meme Poll {today}"
+            
+            if poll['type'] == 'daily':
+                today = datetime.datetime.now().strftime("%d/%m/%Y")
+                output_message = f"Fin de la Meme Poll {today}"
+            elif poll['type'] == 'champions':
+                week_number = datetime.datetime.now().isocalendar()[1]
+                output_message = f"Fin de la Champions Poll - Semana {week_number}"
+            
             polls.update({'status': 'closed'}, doc_ids=[poll_doc_id])
             
             if PIN_ENABLED:
@@ -357,7 +374,7 @@ def poll_results(update, context):
     if poll:
         chat_id = poll['chat_id']
         poll_doc_id = poll.doc_id
-        poll_id = poll['poll_id']
+
         if poll['status'] == 'closed':
             enable_answer = True
             max_votes = 0
@@ -378,23 +395,37 @@ def poll_results(update, context):
             else:
                 if len(most_voted) == 1:
                     poll_result = 'winner'
-                    output_message = f"Ganador: {most_voted[0]}"
-                    polls.update({'status': 'finished', 'current': False, 'winner': users.get((Query().poll_id == poll_doc_id) & (Query().first_name == most_voted[0]))['user_id']}, doc_ids=[poll_doc_id])
+                    if poll['type'] == 'daily':
+                        winner_id = users.get((Query().poll_id == poll_doc_id) & (Query().first_name == most_voted[0]))['user_id']
+                        polls.update({'status': 'finished', 'current': False, 'winner': winner_id}, doc_ids=[poll_doc_id])
+                        output_message = f"Ganador: {most_voted[0]}"
+                    elif poll['type'] == 'champions':
+                        winner_poll = polls.get((Query().chat_id == chat_id) & (Query().date == most_voted[0].split(" ")[1]))
+                        winner_id = users.get((Query().poll_id == winner_poll.doc_id) & (Query().first_name == most_voted[0].split(" ")[0]))['user_id']
+                        polls.update({'status': 'finished', 'current': False, 'winner': winner_id}, doc_ids=[poll_doc_id])
+                        output_message = f"Ganador: {most_voted[0].split(' ')[0]}"
                 else:
                     poll_result = 'tied'
-                    output_message = f"Empate entre {most_voted}. Comenzar el desempate con /tiebreak"
-                    polls.update({'status': 'tied', 'tied_users': [users.get((Query().poll_id == poll_doc_id) & (Query().first_name == u))['user_id'] for u in most_voted]}, doc_ids=[poll_doc_id])
+                    if poll['type'] == 'daily':
+                        output_message = f"Empate entre {most_voted}. Comenzar el desempate con /tiebreak"
+                        polls.update({'status': 'tied', 'tied_users': [users.get((Query().poll_id == poll_doc_id) & (Query().first_name == u))['user_id'] for u in most_voted]}, doc_ids=[poll_doc_id])
+                    elif poll['type'] == 'champions':
+                        output_message = f"Empate entre {[u.split(' ')[0] for u in most_voted]}. Comenzar el desempate con /champions_tiebreak"
+                        polls.update({'status': 'tied', 'tied_users': [
+                            users.get((Query().poll_id == polls.get((Query().chat_id == chat_id) & (Query().date == u.split(' ')[1])).doc_id) & (Query().first_name == u.split(' ')[0]))['user_id'] for u in most_voted]}, doc_ids=[poll_doc_id])
 
     if enable_answer:
         if poll_result == 'winner':
             context.bot.send_message(chat_id=chat_id, text=output_message, reply_to_message_id=poll['msg_id'])
-            user_id = users.get((Query().first_name == most_voted[0]) & (Query().poll_id == poll_doc_id))['user_id']
-            photo_id = images.get((Query().user_id == user_id) & (Query().poll_doc_id == poll_doc_id))['file_id']
-            photo = context.bot.get_file(photo_id).download_as_bytearray()
-            context.bot.set_chat_photo(chat_id=chat_id, photo=bytes(photo))
-            logging.info("Setting chat photo")
+            if poll['type'] == 'daily':
+                photo_id = images.get((Query().user_id == winner_id) & (Query().poll_doc_id == poll_doc_id))['file_id']
+                photo = context.bot.get_file(photo_id).download_as_bytearray()
+                context.bot.set_chat_photo(chat_id=chat_id, photo=bytes(photo))
+                logging.info("Setting chat photo")
+        
         elif poll_result == 'tied':
             context.bot.send_message(chat_id=chat_id, text=output_message)
+        
         else:
             context.bot.send_message(chat_id=chat_id, text=output_message)
 
@@ -445,41 +476,85 @@ def first_reminder(context):
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
-def weekly_poll(update, context):
+def champions_poll(update, context):
     chat_id = update.effective_chat.id
+    day = datetime.datetime.now().strftime("%A")
     
-    if not Utils.poll_in_progress(chat_id, poll_type='daily'):
+    if day == CHAMPIONS_POLL_DAY:
+        if Utils.ignore_poll(chat_id, poll_type='champions'):
+            output_message = f"Ya hubo una Champions Poll el día de hoy."
+
+        if Utils.poll_in_progress(chat_id, poll_type='champions'):
+            output_message = f"Ya hay una Champions Poll en curso."
+        else:
+            week_number = datetime.datetime.now().isocalendar()[1]
+            week_winners = Utils.get_winners(chat_id=chat_id, filter="week", value=week_number)
+            
+            options = []
+            for item in week_winners:
+                first_name = users.get(Query().user_id == item['user_id'])['first_name']
+                options.append(first_name + " " + item['date'])
+                context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=item['msg_id'])
+            
+            message = context.bot.send_poll(chat_id=chat_id, question=f"Champions Poll - Semana {week_number}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
+
+            if PIN_ENABLED:
+                context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
+                logging.info(f"Poll pinned")
+            
+            new_champions_poll = {
+                "date": datetime.datetime.now().strftime("%d/%m/%Y"),
+                "week_number": datetime.datetime.now().isocalendar()[1],
+                "month_number": datetime.datetime.now().strftime("%d/%m/%Y").split("/")[1],
+                "type": "champions",
+                "chat_id": chat_id,
+                "status": "started",
+                "created_by": update.message.from_user.id,
+                "started_by": update.message.from_user.id,
+                "started_at": time.time(),
+                "poll_id": message.poll.id,
+                "msg_id": message.message_id,
+                "current": True,
+            }
+            polls.insert(new_champions_poll)
+
+            output_message = f"Se inicio la Champions Poll - Semana {week_number}!"
+            logging.info("Weekly poll started")
+    else:
+        output_message = f"Las Champion Polls son solo los Domingos."
+    
+    context.bot.send_message(chat_id=chat_id, text=output_message)
+
+def champions_tiebreak(update, context):
+    chat_id = update.effective_chat.id
+
+    if Utils.poll_in_progress(chat_id, poll_type='champions'):
+        poll = Utils.get_poll_data(chat_id, poll_type='champions')
         week_number = datetime.datetime.now().isocalendar()[1]
-        week_winners = Utils.get_winners(chat_id=chat_id, filter="week", value=week_number)
-        
+        week_winners = Utils.get_winners(chat_id=chat_id, filter="week", value=week_number, user_ids=poll['tied_users'])
+        print(week_winners)
+
         options = []
         for item in week_winners:
             first_name = users.get(Query().user_id == item['user_id'])['first_name']
-            options.append(first_name)
+            options.append(first_name + " " + item['date'])
             context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=item['msg_id'])
         
-        message = context.bot.send_poll(chat_id=chat_id, question=f"Weekly Poll Semana {week_number}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
-        if PIN_ENABLED:
-                context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
-                logging.info(f"Poll pinned")
+        message = context.bot.send_poll(chat_id=chat_id, question=f"Champions Poll Tiebreak - Semana {week_number}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
         
-        new_weekly_poll = {
-            "date": datetime.datetime.now().strftime("%d/%m/%Y"),
-            "week_number": datetime.datetime.now().isocalendar()[1],
-            "month_number": datetime.datetime.now().strftime("%d/%m/%Y").split("/")[1],
-            "type": "weekly",
-            "chat_id": chat_id,
-            "status": "started",
-            "created_by": update.message.from_user.id,
-            "started_by": update.message.from_user.id,
-            'started_at': time.time(),
-            'poll_id': message.poll.id,
-            'msg_id': message.message_id,
-            "current": True,
-            'poll_id': ''
-        }
-        polls.insert(new_weekly_poll)
+        polls.update({'status': 'tiebreak', 'poll_id': message.poll.id, 'msg_id': message.message_id, 'started_at': time.time()}, doc_ids=[poll.doc_id])
+
+        if PIN_ENABLED:
+            context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
+            logging.info(f"Poll pinned")
+
+        output_message = f"Se inicio el tiebreak Champions Poll - Semana {week_number}!"
         logging.info("Weekly poll started")
+    else:
+        output_message = f"No hay ninguna Champions Poll empatada."
+    
+    context.bot.send_message(chat_id=chat_id, text=output_message)
+
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -508,6 +583,7 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         READ_LATENCY = local_config['READ_LATENCY']
         CLEAN_HISTORY_ALLOWLIST = local_config['CLEAN_HISTORY_ALLOWLIST']
         MAX_AUTOVOTES_PER_WEEK = local_config['MAX_AUTOVOTES_PER_WEEK']
+        CHAMPIONS_POLL_DAY = local_config['CHAMPIONS_POLL_DAY']
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
@@ -528,7 +604,8 @@ dispatcher.add_handler(CommandHandler('tiebreak', tiebreak))
 dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
-#dispatcher.add_handler(CommandHandler('weekly_poll', weekly_poll))
+dispatcher.add_handler(CommandHandler('champions_poll', champions_poll))
+dispatcher.add_handler(CommandHandler('champions_tiebreak', champions_tiebreak))
 dispatcher.add_handler(PollHandler(receive_poll_update))
 dispatcher.add_handler(PollAnswerHandler(receive_poll_answer))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
