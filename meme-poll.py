@@ -9,7 +9,7 @@ import datetime
 from decouple import config
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollHandler, PollAnswerHandler
 from tinydb import TinyDB, Query
-from models.Utils import Utils
+import scripts.Utils as Utils
 
 
 def start(update, context):
@@ -85,6 +85,7 @@ def new_poll(update, context):
             new_poll_data = {
                 "date": today,
                 "week_number": datetime.datetime.now().isocalendar()[1],
+                "type": "daily",
                 "chat_id": chat_id,
                 "status": "loading",
                 "created_by": from_user['id'],
@@ -253,23 +254,16 @@ def cancel_poll(update, context):
 
 
 def hall_of_fame(update, context):
-    chat_id = update.effective_chat.id    
-    finished_polls = polls.search((Query().status == 'finished') & (Query().winner.exists()) & (Query().chat_id == chat_id))
+    chat_id = update.effective_chat.id
 
-    winners = []
-    for poll in finished_polls:
-        winner_index = next((index for (index, winner) in enumerate(winners) if winner["user_id"] == poll['winner']), None)
-        if isinstance(winner_index, int):
-            winners[winner_index]['total_wins'] += 1
-        else:
-            winners.append({ 'user_id': poll['winner'], 'total_wins': 1})
+    daily_winners = Utils.count_winners(chat_id)
     
+    daily_message = ""
+    for winner in sorted(daily_winners, key = lambda i: i['total_wins'], reverse=True):
+        daily_message += "{0:<10} {1}".format(users.get((Query().user_id == winner['user_id']) & (Query().chat_id == chat_id))['first_name'], winner['total_wins']) + "\n"
     
-    output_message = ""
-    for winner in sorted(winners, key = lambda i: i['total_wins'], reverse=True):
-        output_message += "{0:<10} {1}".format(users.get((Query().user_id == winner['user_id']) & (Query().chat_id == chat_id))['first_name'], winner['total_wins']) + "\n"
-    
-    context.bot.send_message(chat_id=chat_id, text="<b>Hall of Fame</b>\n\n" + "<pre>" + output_message + "</pre>", parse_mode='HTML')
+    output_message = "<b>Hall of Fame</b>\n\n" + "<b>Diarias</b>\n" + "<pre>" + daily_message + "</pre>"
+    context.bot.send_message(chat_id=chat_id, text=output_message, parse_mode='HTML')
 
 def schedule_close(context):    
     poll_doc_id = context.job.context
@@ -451,6 +445,43 @@ def first_reminder(context):
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
+def weekly_poll(update, context):
+    chat_id = update.effective_chat.id
+    
+    if not Utils.poll_in_progress(chat_id, poll_type='daily'):
+        week_number = datetime.datetime.now().isocalendar()[1]
+        week_winners = Utils.get_winners(chat_id=chat_id, filter="week", value=week_number)
+        
+        options = []
+        for item in week_winners:
+            first_name = users.get(Query().user_id == item['user_id'])['first_name']
+            options.append(first_name)
+            context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=item['msg_id'])
+        
+        message = context.bot.send_poll(chat_id=chat_id, question=f"Weekly Poll Semana {week_number}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
+        if PIN_ENABLED:
+                context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
+                logging.info(f"Poll pinned")
+        
+        new_weekly_poll = {
+            "date": datetime.datetime.now().strftime("%d/%m/%Y"),
+            "week_number": datetime.datetime.now().isocalendar()[1],
+            "month_number": datetime.datetime.now().strftime("%d/%m/%Y").split("/")[1],
+            "type": "weekly",
+            "chat_id": chat_id,
+            "status": "started",
+            "created_by": update.message.from_user.id,
+            "started_by": update.message.from_user.id,
+            'started_at': time.time(),
+            'poll_id': message.poll.id,
+            'msg_id': message.message_id,
+            "current": True,
+            'poll_id': ''
+        }
+        polls.insert(new_weekly_poll)
+        logging.info("Weekly poll started")
+
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 LOG_DIR = f"{dir_path}/log"
@@ -497,6 +528,7 @@ dispatcher.add_handler(CommandHandler('tiebreak', tiebreak))
 dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
+#dispatcher.add_handler(CommandHandler('weekly_poll', weekly_poll))
 dispatcher.add_handler(PollHandler(receive_poll_update))
 dispatcher.add_handler(PollAnswerHandler(receive_poll_answer))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
