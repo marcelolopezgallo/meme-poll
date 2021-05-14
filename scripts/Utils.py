@@ -13,8 +13,6 @@ def get_nickname(from_user):
 def get_winners(chat_id, filter=None, value=None):
     if filter == "week":
         poll_array = polls.search((Query().status == 'finished') & (Query().type == 'daily') & (Query().winner.exists()) & (Query().chat_id == chat_id) & (Query().week_number == value))
-    if filter == "month":
-        poll_array = polls.search((Query().status == 'finished') & (Query().type == 'weekly') & (Query().winner.exists()) & (Query().chat_id == chat_id) & (Query().month_number == value))
     else:
         poll_array = polls.search((Query().status == 'finished') & (Query().type == 'daily') & (Query().winner.exists()) & (Query().chat_id == chat_id))
 
@@ -32,8 +30,6 @@ def get_winners(chat_id, filter=None, value=None):
 def count_winners(chat_id, filter=None, value=None):
     if filter == "week":
         poll_array = polls.search((Query().status == 'finished') & (Query().type == 'daily') & (Query().winner.exists()) & (Query().chat_id == chat_id) & (Query().week_number == value))
-    if filter == "month":
-        poll_array = polls.search((Query().status == 'finished') & (Query().type == 'weekly') & (Query().winner.exists()) & (Query().chat_id == chat_id) & (Query().month_number == value))
     else:
         poll_array = polls.search((Query().status == 'finished') & (Query().type == 'daily') & (Query().winner.exists()) & (Query().chat_id == chat_id))
     

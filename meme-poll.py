@@ -294,11 +294,25 @@ def close_poll(update, context):
     poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
     
     if poll:
-        if poll['status'] in ['started', 'tiebreak']:
+        if poll['type'] == 'daily':
+            if poll['status'] in ['started', 'tiebreak']:
+                poll_doc_id = poll.doc_id
+                poll_message_id = poll['msg_id']
+                today = datetime.datetime.now().strftime("%d/%m/%Y")
+                output_message = f"Fin de la Meme Poll {today}"
+                polls.update({'status': 'closed'}, doc_ids=[poll_doc_id])
+                
+                if PIN_ENABLED:
+                    context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
+                    logging.info(f"Poll unpinned")
+
+                context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
+                logging.info(f"Poll Stopped")
+        elif poll['type'] == 'champions':
             poll_doc_id = poll.doc_id
             poll_message_id = poll['msg_id']
-            today = datetime.datetime.now().strftime("%d/%m/%Y")
-            output_message = f"Fin de la Meme Poll {today}"
+            week_number = datetime.datetime.now().isocalendar()[1]
+            output_message = f"Fin de la Champions Poll - Semana {week_number}"
             polls.update({'status': 'closed'}, doc_ids=[poll_doc_id])
             
             if PIN_ENABLED:
@@ -449,41 +463,51 @@ def first_reminder(context):
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
-def weekly_poll(update, context):
+def champions_poll(update, context):
     chat_id = update.effective_chat.id
+    day = now = datetime.datetime.now().strftime("%A")
     
-    if not Utils.poll_in_progress(chat_id, poll_type='daily'):
-        week_number = datetime.datetime.now().isocalendar()[1]
-        week_winners = Utils.get_winners(chat_id=chat_id, filter="week", value=week_number)
-        
-        options = []
-        for item in week_winners:
-            first_name = users.get(Query().user_id == item['user_id'])['first_name']
-            options.append(first_name)
-            context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=item['msg_id'])
-        
-        message = context.bot.send_poll(chat_id=chat_id, question=f"Weekly Poll Semana {week_number}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
-        if PIN_ENABLED:
+    if day == CHAMPIONS_POLL_DAY:
+        if Utils.poll_in_progress(chat_id, poll_type='champions'):
+            output_message = f"Ya hay una Champions Poll en curso."
+        else:
+            week_number = datetime.datetime.now().isocalendar()[1]
+            week_winners = Utils.get_winners(chat_id=chat_id, filter="week", value=week_number)
+            
+            options = []
+            for item in week_winners:
+                first_name = users.get(Query().user_id == item['user_id'])['first_name']
+                options.append(first_name)
+                context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=item['msg_id'])
+            
+            message = context.bot.send_poll(chat_id=chat_id, question=f"Weekly Poll Semana {week_number}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
+            if PIN_ENABLED:
                 context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
                 logging.info(f"Poll pinned")
-        
-        new_weekly_poll = {
-            "date": datetime.datetime.now().strftime("%d/%m/%Y"),
-            "week_number": datetime.datetime.now().isocalendar()[1],
-            "month_number": datetime.datetime.now().strftime("%d/%m/%Y").split("/")[1],
-            "type": "weekly",
-            "chat_id": chat_id,
-            "status": "started",
-            "created_by": update.message.from_user.id,
-            "started_by": update.message.from_user.id,
-            'started_at': time.time(),
-            'poll_id': message.poll.id,
-            'msg_id': message.message_id,
-            "current": True,
-            'poll_id': ''
-        }
-        polls.insert(new_weekly_poll)
-        logging.info("Weekly poll started")
+            
+            new_weekly_poll = {
+                "date": datetime.datetime.now().strftime("%d/%m/%Y"),
+                "week_number": datetime.datetime.now().isocalendar()[1],
+                "month_number": datetime.datetime.now().strftime("%d/%m/%Y").split("/")[1],
+                "type": "champions",
+                "chat_id": chat_id,
+                "status": "started",
+                "created_by": update.message.from_user.id,
+                "started_by": update.message.from_user.id,
+                'started_at': time.time(),
+                'poll_id': message.poll.id,
+                'msg_id': message.message_id,
+                "current": True,
+                'poll_id': ''
+            }
+            polls.insert(new_weekly_poll)
+
+            output_message = f"Se inicio la Champions Poll - Semana {week_number}!"
+            logging.info("Weekly poll started")
+    else:
+        output_message = f"Las Champion Polls son solo los Domingos."
+    
+    context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -533,7 +557,7 @@ dispatcher.add_handler(CommandHandler('tiebreak', tiebreak))
 dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
-#dispatcher.add_handler(CommandHandler('weekly_poll', weekly_poll))
+dispatcher.add_handler(CommandHandler('champions_poll', champions_poll))
 dispatcher.add_handler(PollHandler(receive_poll_update))
 dispatcher.add_handler(PollAnswerHandler(receive_poll_answer))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
