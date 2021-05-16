@@ -193,6 +193,7 @@ def start_poll(update, context):
         context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll_doc_id)
         #schedule_close(update, context, message.message_id, poll_doc_id)
 
+
 def tiebreak(update, context):
     enable_close = False
     enable_answer = False
@@ -275,6 +276,7 @@ def hall_of_fame(update, context):
     output_message = "<b>Hall of Fame</b>\n\n" + "<b>Diarias</b>\n" + "<pre>" + daily_message + "</pre>" + "\n<b>Semanales</b>\n" + "<pre>" + weekly_message + "</pre>"
     context.bot.send_message(chat_id=chat_id, text=output_message, parse_mode='HTML')
 
+
 def schedule_close(context):    
     poll_doc_id = context.job.context
     poll = polls.get(doc_id=poll_doc_id)
@@ -294,6 +296,7 @@ def schedule_close(context):
         logging.info(f"Poll Stopped")
     else:
         logging.info("Scheduled close ignored")
+
 
 def close_poll(update, context):
     chat_id = update.effective_chat.id
@@ -329,6 +332,7 @@ def close_poll(update, context):
 def receive_poll_update(update, context):
     if update.poll.is_closed:
         poll_results(update, context)
+
 
 def receive_poll_answer(update, context):
     poll_id = update.poll_answer.poll_id
@@ -524,6 +528,7 @@ def champions_poll(update, context):
         output_message = f"Las Champion Polls son solo los Domingos."
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
+
 
 def champions_tiebreak(update, context):
     chat_id = update.effective_chat.id
