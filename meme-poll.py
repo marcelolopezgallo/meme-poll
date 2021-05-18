@@ -6,7 +6,7 @@ import json
 import time
 import datetime
 
-from decouple import config
+from decouple import Undefined, config
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollHandler, PollAnswerHandler
 from telegram.error import BadRequest
 from tinydb import TinyDB, Query, utils
@@ -474,36 +474,40 @@ def receive_poll_answer(update, context):
 def receive_poll_answer_v2(update, context):
     poll = Utils.get_poll_data(poll_id=update.poll_answer.poll_id)
     voter_id = update.poll_answer.user.id
-    voted_option = update.poll_answer.option_ids[0]
+    voted_option = update.poll_answer.option_ids
     
     if poll:
-        autovote = Utils.check_autovote(voter_id, voted_option, poll)
+        if poll['status'] == 'started':
+            if voted_option:
+                voted_option = voted_option[0]
+                is_autovote = Utils.check_autovote(voter_id, voted_option, poll)
 
-        if autovote:
-            users.update({'autovote': True}, (Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
-            week_number = datetime.datetime.now().isocalendar()[1]
-            polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number))
-            
-            autovote_count = 0
-            for p in polls_this_week:
-                u = users.get((Query().user_id == voter_id) & (Query().poll_id == p.doc_id))
-                if u and 'autovote' in u:
-                    autovote_count += 1
-            
-            voter_name = users.get((Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))['first_name']
-            if autovote_count < MAX_AUTOVOTES_PER_WEEK:
-                output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
+                if is_autovote:
+                    Utils.add_vote(voter_id, voted_option, poll, is_autovote)
+                    autovote_count = Utils.autovote_count(voter_id)
+
+                    voter_name = Utils.get_user_data(poll['chat_id'], voter_id, poll.doc_id)['first_name']
+                    if autovote_count < MAX_AUTOVOTES_PER_WEEK:
+                        output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
+                    else:
+                        output_message = f"{voter_name}, consumiste los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
+                        Utils.ban_user(voter_id, poll)
+                    
+                    context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
+                else:
+                    Utils.add_vote(voter_id, voted_option, poll, is_autovote)
             else:
-                output_message = f"{voter_name}, consumiste los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
-                blocked_user_data = {
-                    'user_id': voter_id,
-                    'chat_id': poll['chat_id'],
-                    'week_number': week_number,
-                    'reason': 'superar limite de autovotos'
-                }
-                banned_users.insert(blocked_user_data)
+                was_autovoter = Utils.retract_vote(voter_id, poll)
+                if was_autovoter:
+                    week_number = datetime.datetime.now().isocalendar()[1]
+                    voter_name = Utils.get_user_data(poll['chat_id'], voter_id, poll.doc_id)['first_name']
+                    if Utils.user_is_banned(voter_id, week_number):
+                        Utils.unban_user(voter_id, week_number)
+                        output_message = f"{voter_name}, recuperaste 1 autovoto y fuiste desbloqueado por esta semana."
+                    else:
+                        output_message = f"{voter_name}, recuperaste 1 autovoto."
 
-        context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
+                    context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
 
 
 def poll_results(update, context):
@@ -763,7 +767,7 @@ dispatcher.add_handler(CommandHandler('clean_history', clean_history))
 dispatcher.add_handler(CommandHandler('champions_poll', champions_poll))
 dispatcher.add_handler(CommandHandler('champions_tiebreak', champions_tiebreak))
 dispatcher.add_handler(PollHandler(receive_poll_update))
-dispatcher.add_handler(PollAnswerHandler(receive_poll_answer))
+dispatcher.add_handler(PollAnswerHandler(receive_poll_answer_v2))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
 updater.start_polling(poll_interval=POLLING_INTERVAL, read_latency=READ_LATENCY)

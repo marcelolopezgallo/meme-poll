@@ -1,6 +1,8 @@
 import os
 import datetime
 import json
+import logging
+
 from decouple import Undefined
 
 from tinydb import TinyDB, Query
@@ -123,38 +125,69 @@ def ignore_poll(chat_id, poll_type):
     return True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
 
 
-def check_autovote(voter_id, voted_option, poll):    
+def check_autovote(voter_id, voted_option, poll):
     if poll['type'] == 'daily':
         if poll['status'] == 'started':
             poll_images = poll['participants']
         elif poll['status'] == 'tiebreak':
             poll_images = [image for image in poll['participants'] if image['msg_id'] in poll['tied_msg_ids']]
 
-    if poll_images[voted_option]['user_id'] == voter_id:
-        users.update({'autovote': True}, (Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
-        week_number = datetime.datetime.now().isocalendar()[1]
-        polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number))
-        
-        autovote_count = 0
-        for p in polls_this_week:
-            u = users.get((Query().user_id == voter_id) & (Query().poll_id == p.doc_id))
-            if u and 'autovote' in u:
-                autovote_count += 1
-        
-        voter_name = users.get((Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))['first_name']
-        if autovote_count < MAX_AUTOVOTES_PER_WEEK:
-            output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
-        else:
-            output_message = f"{voter_name}, consumiste los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
-            blocked_user_data = {
-                'user_id': voter_id,
-                'chat_id': poll['chat_id'],
-                'week_number': week_number,
-                'reason': 'superar limite de autovotos'
-            }
-            banned_users.insert(blocked_user_data)
+    return True if poll_images[voted_option]['user_id'] == voter_id else False
+
+def autovote_count(voter_id, week_number=None):
+    polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number or datetime.datetime.now().isocalendar()[1]))
     
-    return output_message
+    autovote_count = 0
+    for p in polls_this_week:
+        u = users.get((Query().user_id == voter_id) & (Query().poll_id == p.doc_id))
+        if u and 'autovote' in u:
+            autovote_count += 1
+    
+    return autovote_count
+
+def add_vote(voter_id, voted_option, poll, is_autovote):
+    users.update({
+        'voted_option': voted_option,
+        'autovote': is_autovote
+    }, (Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
+    
+    logging.info(f"Adding vote from {voter_id} in poll {poll['poll_id']}")
+
+def retract_vote(voter_id, poll):
+    was_autovoter = users.get((Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))['autovote']
+    
+    users.update({
+        'voted_option': None,
+        'autovote': None
+    }, (Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
+
+    logging.info(f"Retracting vote from {voter_id} in poll {poll['poll_id']}")
+
+    return was_autovoter
+
+
+def ban_user(voter_id, poll):
+    blocked_user_data = {
+        'user_id': voter_id,
+        'chat_id': poll['chat_id'],
+        'week_number': poll['week_number'],
+        'reason': 'superar limite de autovotos'
+    }
+    banned_users.insert(blocked_user_data)
+
+    logging.info(f"Banned user {voter_id} for week {poll['week_number']}")
+
+
+def user_is_banned(voter_id, week_number):
+    is_banned = banned_users.get((Query().user_id == voter_id) & (Query().week_number == week_number))
+
+    return True if is_banned else False
+
+
+def unban_user(voter_id, week_number):
+    banned_users.remove((Query().user_id == voter_id) & (Query().week_number == week_number))
+
+    logging.info(f"Unbanned user {voter_id} for week {poll['week_number']}")
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
