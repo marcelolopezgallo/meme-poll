@@ -634,6 +634,10 @@ def champions_poll(update, context):
                         "poll_id": message.poll.id,
                         "msg_id": message.message_id,
                         "current": True,
+                        "participants": [{
+                            'user_id': image['user_id'],
+                            'msg_id': image['msg_id']
+                        } for image in week_winners]
                     }
                     polls.insert(new_champions_poll)
 
