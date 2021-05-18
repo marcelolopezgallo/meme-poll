@@ -140,7 +140,7 @@ def autovote_count(voter_id, week_number=None):
     autovote_count = 0
     for p in polls_this_week:
         u = users.get((Query().user_id == voter_id) & (Query().poll_id == p.doc_id))
-        if u and 'autovote' in u:
+        if u['autovote']:
             autovote_count += 1
     
     return autovote_count
