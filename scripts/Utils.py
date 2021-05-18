@@ -187,7 +187,7 @@ def user_is_banned(voter_id, week_number):
 def unban_user(voter_id, week_number):
     banned_users.remove((Query().user_id == voter_id) & (Query().week_number == week_number))
 
-    logging.info(f"Unbanned user {voter_id} for week {poll['week_number']}")
+    logging.info(f"Unbanned user {voter_id} for week {week_number}")
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
