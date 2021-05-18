@@ -1,6 +1,7 @@
 import os
 import datetime
 import json
+from decouple import Undefined
 
 from tinydb import TinyDB, Query
 
@@ -11,6 +12,31 @@ def get_nickname(from_user):
         nickname = from_user['first_name']
     
     return nickname
+
+def get_participants(chat_id, poll_doc_ids=[], poll_type=None, is_tied=False, tied_users=None, week_number=None, tied_msg_ids=None):
+    if poll_type == 'daily':
+        if is_tied:
+            participants = images.search((Query().chat_id == chat_id) & (Query().poll_doc_id.one_of(poll_doc_ids)) & Query().user_id.one_of(tied_users))
+        else:
+            participants = images.search((Query().chat_id == chat_id) & (Query().poll_doc_id.one_of(poll_doc_ids)))
+    
+    elif poll_type == 'champions':
+        if is_tied:
+            participants = images.search((Query().chat_id == chat_id) & (Query().msg_id.one_of(tied_msg_ids)))
+        else:
+            poll_array = polls.search((Query().status == 'finished') & (Query().type == 'daily') & (Query().winner.exists()) & (Query().chat_id == chat_id) & (Query().week_number == week_number))
+
+            participants = []
+            for poll in poll_array:
+                data = {
+                    'user_id': poll['winner'],
+                    'msg_id': images.get((Query().poll_doc_id == poll.doc_id) & (Query().user_id == poll['winner']))['msg_id'],
+                    'date': poll['date']
+                }
+                participants.append(data)
+
+    return participants
+
 
 def get_winners(chat_id, filter=None, value=None, user_ids=None):
     if filter == "week":
@@ -60,20 +86,78 @@ def poll_in_progress(chat_id, poll_type):
         poll_in_progress = True
     else:
         poll_in_progress = False
-    
+
     return poll_in_progress
 
 
-def get_poll_data(chat_id, poll_type):
-    poll = polls.get((Query().current == True) & (Query().chat_id == chat_id) & (Query().type == poll_type))
+def poll_in_progress_v2(chat_id):
+    poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
+    if poll:
+        poll_in_progress = True
+        poll_type = poll['type']
+    else:
+        poll_in_progress = False
+        poll_type = Undefined
+
+    return poll_in_progress, poll_type
+
+
+def get_poll_data(chat_id=None, poll_type=None, poll_id=None):
+    if poll_type:
+        poll = polls.get((Query().current == True) & (Query().chat_id == chat_id) & (Query().type == poll_type))
+    elif poll_id:
+        poll = polls.get(Query().poll_id == poll_id)
 
     return poll
+
+def get_user_data(chat_id, user_id, poll_doc_id=None):
+    user_data = users.get((Query().chat_id == chat_id) & (Query().user_id == user_id))
+
+    return user_data
+
 
 def ignore_poll(chat_id, poll_type):
     today = datetime.datetime.now().strftime("%d/%m/%Y")
     previous_polls = polls.search((Query().date == today) & (Query().chat_id == chat_id) & (Query().type == poll_type))
     
     return True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
+
+
+def check_autovote(voter_id, voted_option, poll):
+    if poll['type'] == 'daily':
+        voted_image = images.get((Query().user_id == voter_id) & (Query().poll_doc_id == poll.doc_id))
+            
+    elif poll['type'] == 'champions':
+        if poll['status'] == 'started':
+            pass
+        elif poll['status'] == 'tiebreak':
+            pass
+    
+    if poll_images[voted_option]['user_id'] == voter_id:
+        users.update({'autovote': True}, (Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
+        week_number = datetime.datetime.now().isocalendar()[1]
+        polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number))
+        autovote_count = 0
+        for p in polls_this_week:
+            u = users.get((Query().user_id == voter_id) & (Query().poll_id == p.doc_id))
+            if u and 'autovote' in u:
+                autovote_count += 1
+        
+        if autovote_count < MAX_AUTOVOTES_PER_WEEK:
+            output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
+        else:
+            output_message = f"{voter_name}, consumiste los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
+            blocked_user_data = {
+                'user_id': voter_id,
+                'chat_id': poll['chat_id'],
+                'week_number': week_number,
+                'reason': 'superar limite de autovotos'
+            }
+            banned_users.insert(blocked_user_data)
+    
+    return output_message
+
+
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 DB_DIR = f"{dir_path}/../db"
