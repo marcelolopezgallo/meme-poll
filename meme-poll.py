@@ -298,8 +298,9 @@ def tiebreak_v2(update, context):
         poll = Utils.get_poll_data(chat_id, poll_type)
 
         if poll['status'] == 'tied':
-            tiebreak_images = Utils.get_participants(chat_id, poll_doc_ids=[poll.doc_id], poll_type=poll_type, is_tied=True, tied_users=poll['tied_users'])
-
+            #tiebreak_images = Utils.get_participants(chat_id, poll_doc_ids=[poll.doc_id], poll_type=poll_type, is_tied=True, tied_users=poll['tied_users'])
+            tiebreak_images = [image for image in poll['participants'] if image['msg_id'] in poll['tied_msg_ids']]
+            
             options = []
             for image in tiebreak_images:
                 first_name = Utils.get_user_data(chat_id, image['user_id'])['first_name']
