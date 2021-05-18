@@ -224,7 +224,17 @@ def start_poll_v2(update, context):
                     context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
                     logging.info(f"Poll pinned")
                 
-                polls.update({'status': 'started', 'started_by': update.message.from_user['id'], 'started_at': time.time(), 'poll_id': message.poll.id, 'msg_id': message.message_id}, doc_ids=[poll.doc_id])
+                polls.update({
+                    'status': 'started',
+                    'started_by': update.message.from_user['id'],
+                    'started_at': time.time(),
+                    'poll_id': message.poll.id,
+                    'msg_id': message.message_id,
+                    'participants': [{
+                        'user_id': image['user_id'],
+                        'msg_id': image['msg_id']
+                    } for image in poll_images]
+                }, doc_ids=[poll.doc_id])
                 output_message = f"La poll fue iniciada por {nickname} y cerrara automaticamente en {int(POLL_TIMER / 60)} min."
                 
                 context.job_queue.run_once(first_reminder, FIRST_REMINDER, context=poll.doc_id)
@@ -238,7 +248,7 @@ def start_poll_v2(update, context):
                 logging.error(BadRequest)
 
         elif poll['status'] == "started":
-            output_message = f"La poll ya fue iniciada por {users.get((Query().user_id == poll['started_by']) & (Query().poll_id == poll_doc_id))['first_name']}"
+            output_message = f"La poll ya fue iniciada por {users.get((Query().poll_id == poll.doc_id) & (Query().user_id == poll['started_by']))['first_name']}"
             logging.info("Poll already started")
     else:
         output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
@@ -461,42 +471,14 @@ def receive_poll_answer(update, context):
 
 
 def receive_poll_answer_v2(update, context):
-    poll_id = update.poll_answer.poll_id
-    poll = Utils.get_poll_data(poll_id=poll_id)
-    voter_id = update.poll_answer.user.id
-    voted_option = update.poll_answer.option_ids[0]
+    poll = Utils.get_poll_data(poll_id=update.poll_answer.poll_id)
     
-    autovote = Utils.check_autovote(voter_id, voted_option, poll)
-
-    poll_images = images.search((Query().chat_id == poll['chat_id']) & (Query().poll_doc_id == poll.doc_id))
+    if poll:
+        Utils.check_autovote(update.poll_answer.user.id, update.poll_answer.option_ids[0], poll)
     
-    voter_name = users.get((Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))['first_name']
-    
-    
-    if poll_images[voted_option]['user_id'] == voter_id:
-        users.update({'autovote': True}, (Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
         
-        week_number = datetime.datetime.now().isocalendar()[1]
-        polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number))
-        autovote_count = 0
-        for p in polls_this_week:
-            u = users.get((Query().user_id == voter_id) & (Query().poll_id == p.doc_id))
-            if u and 'autovote' in u:
-                autovote_count += 1
-        
-        if autovote_count < MAX_AUTOVOTES_PER_WEEK:
-            output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
-        else:
-            output_message = f"{voter_name}, consumiste los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
-            blocked_user_data = {
-                'user_id': voter_id,
-                'chat_id': poll['chat_id'],
-                'week_number': week_number,
-                'reason': 'superar limite de autovotos'
-            }
-            banned_users.insert(blocked_user_data)
 
-    context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
+        context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
 
 
 def poll_results(update, context):
