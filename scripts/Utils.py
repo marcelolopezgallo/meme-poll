@@ -123,26 +123,25 @@ def ignore_poll(chat_id, poll_type):
     return True in (previous_poll['status'] == 'finished' and chat_id not in UNLIMITED_POLLS_WHITELIST for previous_poll in previous_polls)
 
 
-def check_autovote(voter_id, voted_option, poll):
+def check_autovote(voter_id, voted_option, poll):    
     if poll['type'] == 'daily':
-        voted_image = images.get((Query().user_id == voter_id) & (Query().poll_doc_id == poll.doc_id))
-            
-    elif poll['type'] == 'champions':
         if poll['status'] == 'started':
-            pass
+            poll_images = poll['participants']
         elif poll['status'] == 'tiebreak':
-            pass
-    
+            poll_images = [image for image in poll['participants'] if image['msg_id'] in poll['tied_msg_ids']]
+
     if poll_images[voted_option]['user_id'] == voter_id:
         users.update({'autovote': True}, (Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
         week_number = datetime.datetime.now().isocalendar()[1]
         polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number))
+        
         autovote_count = 0
         for p in polls_this_week:
             u = users.get((Query().user_id == voter_id) & (Query().poll_id == p.doc_id))
             if u and 'autovote' in u:
                 autovote_count += 1
         
+        voter_name = users.get((Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))['first_name']
         if autovote_count < MAX_AUTOVOTES_PER_WEEK:
             output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
         else:
@@ -156,7 +155,6 @@ def check_autovote(voter_id, voted_option, poll):
             banned_users.insert(blocked_user_data)
     
     return output_message
-
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))

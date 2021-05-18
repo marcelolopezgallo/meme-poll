@@ -473,11 +473,35 @@ def receive_poll_answer(update, context):
 
 def receive_poll_answer_v2(update, context):
     poll = Utils.get_poll_data(poll_id=update.poll_answer.poll_id)
+    voter_id = update.poll_answer.user.id
+    voted_option = update.poll_answer.option_ids[0]
     
     if poll:
-        Utils.check_autovote(update.poll_answer.user.id, update.poll_answer.option_ids[0], poll)
-    
-        
+        autovote = Utils.check_autovote(voter_id, voted_option, poll)
+
+        if autovote:
+            users.update({'autovote': True}, (Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
+            week_number = datetime.datetime.now().isocalendar()[1]
+            polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number))
+            
+            autovote_count = 0
+            for p in polls_this_week:
+                u = users.get((Query().user_id == voter_id) & (Query().poll_id == p.doc_id))
+                if u and 'autovote' in u:
+                    autovote_count += 1
+            
+            voter_name = users.get((Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))['first_name']
+            if autovote_count < MAX_AUTOVOTES_PER_WEEK:
+                output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
+            else:
+                output_message = f"{voter_name}, consumiste los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
+                blocked_user_data = {
+                    'user_id': voter_id,
+                    'chat_id': poll['chat_id'],
+                    'week_number': week_number,
+                    'reason': 'superar limite de autovotos'
+                }
+                banned_users.insert(blocked_user_data)
 
         context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
 
