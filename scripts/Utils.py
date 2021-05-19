@@ -134,8 +134,8 @@ def check_autovote(voter_id, voted_option, poll):
 
     return True if poll_images[voted_option]['user_id'] == voter_id else False
 
-def autovote_count(voter_id, week_number=None):
-    polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number or datetime.datetime.now().isocalendar()[1]))
+def autovote_count(voter_id, week_number=datetime.datetime.now().isocalendar()[1]):
+    polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number))
     
     autovote_count = 0
     for p in polls_this_week:
@@ -183,6 +183,11 @@ def user_is_banned(voter_id, week_number):
 
     return True if is_banned else False
 
+
+def previous_autovote(voter_id, poll):
+    user = users.get((Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
+
+    return True if user['autovote'] else False
 
 def unban_user(voter_id, week_number):
     banned_users.remove((Query().user_id == voter_id) & (Query().week_number == week_number))

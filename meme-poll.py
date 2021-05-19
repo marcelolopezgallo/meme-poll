@@ -143,7 +143,9 @@ def new_meme(update, context):
                         'poll_id': poll_doc_id,
                         'username': from_user['username'],
                         'first_name': from_user['first_name'],
-                        'status': 'waiting for meme'
+                        'status': 'waiting for meme',
+                        'autovote': None,
+                        'voted_option': None
                         }
                     users.insert(new_user_info)
                     output_message = f"Ok {nickname}, enviame tu meme!"
@@ -477,12 +479,12 @@ def receive_poll_answer_v2(update, context):
     voted_option = update.poll_answer.option_ids
     
     if poll:
-        if poll['status'] == 'started':
-            if voted_option:
-                voted_option = voted_option[0]
-                is_autovote = Utils.check_autovote(voter_id, voted_option, poll)
+        if voted_option:
+            voted_option = voted_option[0]
+            is_autovote = Utils.check_autovote(voter_id, voted_option, poll)
 
-                if is_autovote:
+            if is_autovote:
+                if not Utils.previous_autovote(voter_id, poll):
                     Utils.add_vote(voter_id, voted_option, poll, is_autovote)
                     autovote_count = Utils.autovote_count(voter_id)
 
@@ -494,20 +496,20 @@ def receive_poll_answer_v2(update, context):
                         Utils.ban_user(voter_id, poll)
                     
                     context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
-                else:
-                    Utils.add_vote(voter_id, voted_option, poll, is_autovote)
             else:
-                was_autovoter = Utils.retract_vote(voter_id, poll)
-                if was_autovoter:
-                    week_number = datetime.datetime.now().isocalendar()[1]
-                    voter_name = Utils.get_user_data(poll['chat_id'], voter_id, poll.doc_id)['first_name']
-                    if Utils.user_is_banned(voter_id, week_number):
-                        Utils.unban_user(voter_id, week_number)
-                        output_message = f"{voter_name}, recuperaste 1 autovoto y fuiste desbloqueado por esta semana."
-                    else:
-                        output_message = f"{voter_name}, recuperaste 1 autovoto."
+                Utils.add_vote(voter_id, voted_option, poll, is_autovote)
+        else:
+            was_autovoter = Utils.retract_vote(voter_id, poll)
+            if was_autovoter:
+                week_number = datetime.datetime.now().isocalendar()[1]
+                voter_name = Utils.get_user_data(poll['chat_id'], voter_id, poll.doc_id)['first_name']
+                if Utils.user_is_banned(voter_id, week_number):
+                    Utils.unban_user(voter_id, week_number)
+                    output_message = f"{voter_name}, recuperaste 1 autovoto y fuiste desbloqueado por esta semana."
+                else:
+                    output_message = f"{voter_name}, recuperaste 1 autovoto."
 
-                    context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
+                context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
 
 
 def poll_results(update, context):
