@@ -104,16 +104,21 @@ def poll_in_progress_v2(chat_id):
     return poll_in_progress, poll_type
 
 
-def get_poll_data(chat_id=None, poll_type=None, poll_id=None):
+def get_poll_data(chat_id=None, poll_type=None, poll_id=None, poll_doc_id=None):
     if poll_type:
         poll = polls.get((Query().current == True) & (Query().chat_id == chat_id) & (Query().type == poll_type))
     elif poll_id:
         poll = polls.get(Query().poll_id == poll_id)
+    elif poll_doc_id:
+        poll = polls.get(doc_id=[poll_doc_id])
 
     return poll
 
 def get_user_data(chat_id, user_id, poll_doc_id=None):
-    user_data = users.get((Query().chat_id == chat_id) & (Query().user_id == user_id))
+    if poll_doc_id:
+        user_data = users.get((Query().chat_id == chat_id) & (Query().user_id == user_id) & (Query().poll_id == poll_doc_id))
+    else:
+        user_data = users.get((Query().chat_id == chat_id) & (Query().user_id == user_id))
 
     return user_data
 
@@ -126,11 +131,10 @@ def enough_polls_for_today(chat_id, poll_type):
 
 
 def check_autovote(voter_id, voted_option, poll):
-    if poll['type'] == 'daily':
-        if poll['status'] == 'started':
-            poll_images = poll['participants']
-        elif poll['status'] == 'tiebreak':
-            poll_images = [image for image in poll['participants'] if image['msg_id'] in poll['tied_msg_ids']]
+    if poll['status'] == 'started':
+        poll_images = poll['participants']
+    elif poll['status'] == 'tiebreak':
+        poll_images = [image for image in poll['participants'] if image['msg_id'] in poll['tied_msg_ids']]
 
     return True if poll_images[voted_option]['user_id'] == voter_id else False
 

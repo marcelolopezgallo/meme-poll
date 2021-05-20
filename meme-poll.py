@@ -547,7 +547,7 @@ def champions_poll(update, context):
                 output_message = f"Ya hay una Champions Poll en curso."
             else:
                 week_number = datetime.datetime.now().isocalendar()[1]
-                week_winners = Utils.get_participants(chat_id, poll_type=poll_type, week_number=week_number)
+                week_winners = Utils.get_participants(chat_id, poll_type='champions', week_number=week_number)
                 options = []
                 for item in week_winners:
                     first_name = users.get(Query().user_id == item['user_id'])['first_name']
@@ -575,10 +575,24 @@ def champions_poll(update, context):
                         "current": True,
                         "participants": [{
                             'user_id': image['user_id'],
+                            'date': image['date'],
                             'msg_id': image['msg_id']
                         } for image in week_winners]
                     }
-                    polls.insert(new_champions_poll)
+                    poll_doc_id = polls.insert(new_champions_poll)
+
+                    for winner in week_winners:
+                        if not Utils.get_user_data(chat_id, winner['user_id'], poll_doc_id):
+                            new_user_info = {
+                                'chat_id': chat_id,
+                                'user_id': winner['user_id'],
+                                'poll_id': poll_doc_id,
+                                'first_name': Utils.get_user_data(chat_id, winner['user_id'])['first_name'],
+                                'status': 'in champions',
+                                'autovote': None,
+                                'voted_option': None
+                            }
+                            users.insert(new_user_info)
 
                     output_message = f"Se inicio la Champions Poll - Semana {week_number}!"
                     logging.info("Weekly poll started")
@@ -603,18 +617,23 @@ def champions_tiebreak(update, context):
     if poll_in_progress and poll_type == 'champions':
         poll = Utils.get_poll_data(chat_id, poll_type='champions')
         week_number = datetime.datetime.now().isocalendar()[1]
-        tiebreak_images = Utils.get_participants(chat_id, poll_type=poll_type, is_tied=True, tied_msg_ids=poll['tied_msg_ids'])
-        print(tiebreak_images)
+        #tiebreak_images = Utils.get_participants(chat_id, poll_type=poll_type, is_tied=True, tied_msg_ids=poll['tied_msg_ids'])
+        tiebreak_images = [image for image in poll['participants'] if image['msg_id'] in poll['tied_msg_ids']]
 
         options = []
         for image in tiebreak_images:
             first_name = Utils.get_user_data(chat_id, image['user_id'])['first_name']
-            options.append(first_name + " " + polls.get(doc_id=image['poll_doc_id'])['date'])
+            options.append(first_name + " " + image['date'])
             context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=image['msg_id'])
         
         message = context.bot.send_poll(chat_id=chat_id, question=f"Champions Poll Tiebreak - Semana {week_number}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
         
-        polls.update({'status': 'tiebreak', 'poll_id': message.poll.id, 'msg_id': message.message_id, 'started_at': time.time()}, doc_ids=[poll.doc_id])
+        polls.update({
+            'status': 'tiebreak',
+            'poll_id': message.poll.id,
+            'msg_id': message.message_id,
+            'started_at': time.time()
+        }, doc_ids=[poll.doc_id])
 
         if PIN_ENABLED:
             context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
