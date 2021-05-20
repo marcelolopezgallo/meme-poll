@@ -155,6 +155,27 @@ def new_meme(update, context):
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
+def delete_meme(update, context):
+    chat_id = update.effective_chat.id
+    poll_in_progress, poll_type = Utils.poll_in_progress_v2(chat_id)
+
+    if poll_in_progress:
+        poll = Utils.get_poll_data(chat_id, poll_type=poll_type)
+        user_image = Utils.get_user_image(update.message.from_user.id, poll.doc_id)
+        if user_image:
+            try:
+                Utils.delete_user_image(user_image.doc_id)
+                Utils.update_user(update.message.from_user.id, poll.doc_id, {'status': 'waiting for meme'})
+                output_message = f"Ok {Utils.get_nickname(update.message.from_user)}, tu meme fue borrado correctamente."
+            except Exception as e:
+                logging.error(f"image {user_image.doc_id} delete failed. {e}")
+        else:
+            output_message = f"{Utils.get_nickname(update.message.from_user)}, no tenes un meme registrado en esta poll."
+    else:
+        output_message = "No hay ninguna poll en curso."
+    
+    context.bot.send_message(chat_id=chat_id, text=output_message)
+
 def start_poll_v2(update, context):
     chat_id = update.effective_chat.id
     nickname = Utils.get_nickname(update.message.from_user)
@@ -648,6 +669,7 @@ banned_users = db.table('banned_users')
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('new_poll', new_poll))
 dispatcher.add_handler(CommandHandler('new_meme', new_meme))
+dispatcher.add_handler(CommandHandler('delete_meme', delete_meme))
 dispatcher.add_handler(CommandHandler('start_poll', start_poll_v2))
 dispatcher.add_handler(CommandHandler('close_poll', close_poll))
 dispatcher.add_handler(CommandHandler('tiebreak', tiebreak_v2))

@@ -194,6 +194,24 @@ def unban_user(voter_id, week_number):
 
     logging.info(f"Unbanned user {voter_id} for week {week_number}")
 
+def get_user_image(user_id, poll_doc_id):
+    user_image = images.get((Query().user_id == user_id) & (Query().poll_doc_id == poll_doc_id))
+
+    return user_image
+
+def delete_user_image(image_doc_id):
+    try:
+        images.remove(doc_ids=[image_doc_id])
+        logging.info(f"image {image_doc_id} deleted successfully")
+    except Exception as e:
+        raise Exception(e)
+
+def update_user(user_id, poll_doc_id, update={}):
+    try:
+        users.update(update, (Query().user_id == user_id) & (Query().poll_id == poll_doc_id))
+        logging.info(f"Updated user {user_id}: {update}")
+    except Exception as e:
+        raise Exception(e)
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 DB_DIR = f"{dir_path}/../db"
