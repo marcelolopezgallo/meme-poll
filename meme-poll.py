@@ -539,7 +539,7 @@ def champions_poll(update, context):
     day = datetime.datetime.now().strftime("%A")
     
     if day == CHAMPIONS_POLL_DAY:
-        if Utils.ignore_poll(chat_id, poll_type='champions'):
+        if Utils.enough_polls_for_today(chat_id, poll_type='champions'):
             output_message = f"Ya hubo una Champions Poll el día de hoy."
         else:
             poll_in_progress, poll_type = Utils.poll_in_progress_v2(chat_id)
@@ -547,7 +547,7 @@ def champions_poll(update, context):
                 output_message = f"Ya hay una Champions Poll en curso."
             else:
                 week_number = datetime.datetime.now().isocalendar()[1]
-                week_winners = Utils.get_participants(chat_id, poll_type='champions', week_number=week_number)
+                week_winners = Utils.get_participants(chat_id, poll_type=poll_type, week_number=week_number)
                 options = []
                 for item in week_winners:
                     first_name = users.get(Query().user_id == item['user_id'])['first_name']

@@ -118,7 +118,7 @@ def get_user_data(chat_id, user_id, poll_doc_id=None):
     return user_data
 
 
-def ignore_poll(chat_id, poll_type):
+def enough_polls_for_today(chat_id, poll_type):
     today = datetime.datetime.now().strftime("%d/%m/%Y")
     previous_polls = polls.search((Query().date == today) & (Query().chat_id == chat_id) & (Query().type == poll_type))
     
