@@ -176,6 +176,7 @@ def delete_meme(update, context):
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
+
 def start_poll_v2(update, context):
     chat_id = update.effective_chat.id
     nickname = Utils.get_nickname(update.message.from_user)
@@ -307,7 +308,6 @@ def cancel_poll(update, context):
 
 def hall_of_fame(update, context):
     chat_id = update.effective_chat.id
-
     daily_winners = Utils.count_winners(chat_id, poll_type='daily')
     weekly_winners = Utils.count_winners(chat_id, poll_type='champions')
     
