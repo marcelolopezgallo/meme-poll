@@ -162,7 +162,7 @@ def retract_vote(voter_id, poll):
     
     users.update({
         'voted_option': None,
-        'autovote': None
+        'autovote': False
     }, (Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
 
     logging.info(f"Retracting vote from {voter_id} in poll {poll['poll_id']}")
