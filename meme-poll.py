@@ -6,10 +6,10 @@ import json
 import time
 import datetime
 
-from decouple import Undefined, config
+from decouple import config
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollHandler, PollAnswerHandler
-from telegram.error import BadRequest
-from tinydb import TinyDB, Query, utils
+from telegram.error import TelegramError
+from tinydb import TinyDB, Query
 import scripts.Utils as Utils
 
 
@@ -222,12 +222,10 @@ def start_poll_v2(update, context):
                 context.job_queue.run_once(first_reminder, FIRST_REMINDER, context=poll.doc_id)
                 context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll.doc_id)
 
-            except BadRequest:
-                print(BadRequest)
-                print(type(BadRequest))
-                #if BadRequest == 'Poll must have at least 2 option':
-                output_message = "No pude iniciar la poll ya que debe haber al menos 2 participantes."
-                logging.error(BadRequest)
+            except TelegramError as e:
+                if e.message == 'Poll must have at least 2 option':
+                    output_message = "No pude iniciar la poll ya que debe haber al menos 2 participantes."
+                logging.error(e.message)
 
         elif poll['status'] == "started":
             output_message = f"La poll ya fue iniciada por {users.get((Query().poll_id == poll.doc_id) & (Query().user_id == poll['started_by']))['first_name']}"
@@ -550,7 +548,7 @@ def champions_poll(update, context):
                 week_winners = Utils.get_participants(chat_id, poll_type='champions', week_number=week_number)
                 options = []
                 for item in week_winners:
-                    first_name = users.get(Query().user_id == item['user_id'])['first_name']
+                    first_name = Utils.get_user_data(chat_id, item['user_id'])['first_name']
                     options.append(first_name + " " + item['date'])
                     context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=item['msg_id'])
                 
@@ -597,12 +595,10 @@ def champions_poll(update, context):
                     output_message = f"Se inicio la Champions Poll - Semana {week_number}!"
                     logging.info("Weekly poll started")
 
-                except BadRequest:
-                    print(BadRequest)
-                    print(type(BadRequest))
-                    #if BadRequest == 'Poll must have at least 2 option':
-                    output_message = "No pude iniciar la champions poll ya que debe haber al menos 2 ganadores en la semana."
-                    logging.error(BadRequest)
+                except TelegramError as e:
+                    if e.message == 'Poll must have at least 2 option':
+                        output_message = "No pude iniciar la poll ya que debe haber al menos 2 participantes."
+                    logging.error(e.message)
 
     else:
         output_message = f"Las Champion Polls son solo los Domingos."

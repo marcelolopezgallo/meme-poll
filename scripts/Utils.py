@@ -62,7 +62,7 @@ def get_winners(chat_id, filter=None, value=None, user_ids=None):
     return winners
 
 
-def count_winners(chat_id, poll_type, value=None):
+def count_winners(chat_id, poll_type):
     if poll_type == "champions":
         poll_array = polls.search((Query().status == 'finished') & (Query().type == 'champions') & (Query().winner.exists()) & (Query().chat_id == chat_id))
     elif poll_type == "daily":
