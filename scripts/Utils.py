@@ -62,7 +62,7 @@ def get_winners(chat_id, filter=None, value=None, user_ids=None):
     return winners
 
 
-def count_winners(chat_id, poll_type, value=None):
+def count_winners(chat_id, poll_type):
     if poll_type == "champions":
         poll_array = polls.search((Query().status == 'finished') & (Query().type == 'champions') & (Query().winner.exists()) & (Query().chat_id == chat_id))
     elif poll_type == "daily":
@@ -111,6 +111,8 @@ def get_poll_data(chat_id=None, poll_type=None, poll_id=None, poll_doc_id=None):
         poll = polls.get(Query().poll_id == poll_id)
     elif poll_doc_id:
         poll = polls.get(doc_id=[poll_doc_id])
+    else:
+        poll = polls.get((Query().current == True) & (Query().chat_id == chat_id))
 
     return poll
 
@@ -188,6 +190,12 @@ def user_is_banned(voter_id, week_number):
     return True if is_banned else False
 
 
+def get_banned_user_data(user_id, week_number):
+    banned_user = banned_users.get((Query().user_id == user_id) & (Query().week_number == week_number))
+
+    return banned_user
+
+
 def previous_autovote(voter_id, poll):
     user = users.get((Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
 
@@ -216,6 +224,43 @@ def update_user(user_id, poll_doc_id, update={}):
         logging.info(f"Updated user {user_id}: {update}")
     except Exception as e:
         raise Exception(e)
+
+def update_poll(poll_doc_id, update={}):
+    try:
+        polls.update(update, doc_ids=[poll_doc_id])
+        logging.info(f"Updated poll {poll_doc_id}: {update}")
+    except Exception as e:
+        logging.error(f"Poll update failed. {e}")
+
+def create_poll(poll_data):
+    try:
+        doc_id = polls.insert(poll_data)
+        logging.info(f"Poll created. {poll_data}")
+    except Exception as e:
+        logging.error(f"Poll creation failed. {e}")
+
+    return doc_id
+
+
+def create_image(image_data):
+    try:
+        doc_id = images.insert(image_data)
+        logging.info(f"Image created. {image_data}")
+    except Exception as e:
+        logging.error(f"Image creation failed. {e}")
+
+    return doc_id
+
+
+def create_user(user_data):
+    try:
+        doc_id = users.insert(user_data)
+        logging.info(f"User created. {user_data}")
+    except Exception as e:
+        logging.error(f"User creation failed. {e}")
+
+    return doc_id
+
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 DB_DIR = f"{dir_path}/../db"
