@@ -401,7 +401,7 @@ def receive_poll_answer_v2(update, context):
                     if autovote_count < MAX_AUTOVOTES_PER_WEEK:
                         output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
                     else:
-                        output_message = f"{voter_name}, consumiste los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
+                        output_message = f"{voter_name}, consumiste todos los autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
                         Utils.ban_user(voter_id, poll)
                     
                     context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
