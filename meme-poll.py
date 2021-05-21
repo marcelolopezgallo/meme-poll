@@ -144,7 +144,7 @@ def new_meme(update, context):
                         'username': from_user['username'],
                         'first_name': from_user['first_name'],
                         'status': 'waiting for meme',
-                        'autovote': None,
+                        'autovote': False,
                         'voted_option': None
                         }
                     users.insert(new_user_info)
@@ -589,7 +589,7 @@ def champions_poll(update, context):
                                 'poll_id': poll_doc_id,
                                 'first_name': Utils.get_user_data(chat_id, winner['user_id'])['first_name'],
                                 'status': 'in champions',
-                                'autovote': None,
+                                'autovote': False,
                                 'voted_option': None
                             }
                             users.insert(new_user_info)
