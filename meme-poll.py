@@ -125,7 +125,7 @@ def new_meme_v2(update, context):
                 week_number = datetime.datetime.now().isocalendar()[1]
                 
                 if Utils.user_is_banned(update.message.from_user.id, week_number):
-                    output_message = f"{nickname}, fuiste blockeado por esta semana por {Utils.get_banned_user_data(update.message.from_user.id, week_number)['reason']}."
+                    output_message = f"{nickname}, tu usuario fue blockeado por esta semana por {Utils.get_banned_user_data(update.message.from_user.id, week_number)['reason']}."
                 else:
                     Utils.create_user({
                         'chat_id': chat_id,
@@ -379,7 +379,7 @@ def receive_poll_answer_v2(update, context):
             if is_autovote:
                 if not Utils.previous_autovote(voter_id, poll):
                     Utils.add_vote(voter_id, voted_option, poll, is_autovote)
-                    autovote_count = Utils.autovote_count(voter_id)
+                    autovote_count = Utils.autovote_count(voter_id, poll['chat_id'])
 
                     voter_name = Utils.get_user_data(poll['chat_id'], voter_id, poll.doc_id)['first_name']
                     if autovote_count < MAX_AUTOVOTES_PER_WEEK:
