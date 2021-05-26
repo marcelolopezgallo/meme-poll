@@ -228,7 +228,7 @@ def start_poll_v2(update, context):
                 output_message = f"La poll ya fue iniciada por {Utils.get_user_data(chat_id, poll['started_by'], poll.doc_id)['first_name']}"
                 logging.info("Poll already started")
         else:
-            output_message = f"La poll podra iniciarese a partir de las {START_POLL_HOUR}"
+            output_message = f"La poll podrá iniciarese a partir de las {START_POLL_HOUR}"
             logging.info("Poll already started")
     else:
         output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
