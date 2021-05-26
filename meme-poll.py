@@ -179,6 +179,7 @@ def start_poll_v2(update, context):
 
     if poll_in_progress:
         now = datetime.datetime.now()
+        
         if now >= now.replace(hour=START_POLL_HOUR):
             if poll_type == 'daily':
                 poll = Utils.get_poll_data(chat_id, poll_type)
