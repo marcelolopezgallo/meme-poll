@@ -14,7 +14,13 @@ import scripts.Utils as Utils
 
 
 def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Soy el bot de la meme poll. Para comenzar con la carga de memes inicia una poll con /new_poll. Luego, cada usuario puede cargar su meme con /new_meme. Finalmente, cuando todos los memes esten cargados, podes iniciar la poll con /start_poll")
+    help_message = f"""<b>MEME POLL BOT</b>\n\nEl juego consiste en enviar memes y armar polls para votar al mejor. De Lunes a Sábados se podrán crear polls diarias con /new_poll. Una vez creada la poll, los miembros del grupo podrán subscribir sus memes a la poll con /new_meme. Finalizada la carga de memes, cualquier miembro podrá comenzar la poll con /start_poll y luego, a votar. Por último, los Domingos habrá una /champions_poll entre los ganadores de las polls de la semana.\n\n<u><i>Reglas durante las polls</i></u>\n
+    - Habrá <u>{MAX_AUTOVOTES_PER_WEEK} autovoto permitido por cada tipo de poll</u>, es decir, 1 para las diarias y 1 para la champions de la semana. 
+    - Aquel usuario que utilice el autovoto en alguna de las polls diarias, será bloqueado para enviar memes por el resto de la semana (incluso si se retracta de su autovoto).
+    - Aquel usuario que utilice el autovoto en la champions poll, será bloqueado para enviar memes durante siguiente semana (incluso si se retracta de su autovoto).
+    """
+    
+    context.bot.send_message(chat_id=update.effective_chat.id, text=help_message, parse_mode='HTML')
 
 
 def receive_image(update, context):
@@ -125,7 +131,7 @@ def new_meme_v2(update, context):
                 week_number = datetime.datetime.now().isocalendar()[1]
                 
                 if Utils.user_is_banned(update.message.from_user.id, week_number):
-                    output_message = f"{nickname}, fuiste blockeado por esta semana por {Utils.get_banned_user_data(update.message.from_user.id, week_number)['reason']}."
+                    output_message = f"{nickname}, tu usuario fue blockeado por esta semana por {Utils.get_banned_user_data(update.message.from_user.id, week_number)['reason']}."
                 else:
                     Utils.create_user({
                         'chat_id': chat_id,
@@ -382,18 +388,20 @@ def receive_poll_answer_v2(update, context):
             is_autovote = Utils.check_autovote(voter_id, voted_option, poll)
 
             if is_autovote:
-                if not Utils.previous_autovote(voter_id, poll):
+                voter_name = Utils.get_user_data(poll['chat_id'], voter_id, poll.doc_id)['first_name']
+                if Utils.previous_autovote(voter_id, poll):
+                    output_message = f"{voter_name}, podrías votar a otros alguna vez..."
+                else:
                     Utils.add_vote(voter_id, voted_option, poll, is_autovote)
-                    autovote_count = Utils.autovote_count(voter_id)
+                    autovote_count = Utils.autovote_count(voter_id, poll['chat_id'])
 
-                    voter_name = Utils.get_user_data(poll['chat_id'], voter_id, poll.doc_id)['first_name']
+                    
                     if autovote_count < MAX_AUTOVOTES_PER_WEEK:
                         output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
                     else:
                         output_message = f"{voter_name}, consumiste todos los autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
                         Utils.ban_user(voter_id, poll)
-                    
-                    context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
+
             else:
                 Utils.add_vote(voter_id, voted_option, poll, is_autovote)
         else:
@@ -406,8 +414,42 @@ def receive_poll_answer_v2(update, context):
                     output_message = f"{voter_name}, recuperaste 1 autovoto y fuiste desbloqueado por esta semana."
                 else:
                     output_message = f"{voter_name}, recuperaste 1 autovoto."
+    
+    context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
 
-                context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
+
+def receive_poll_answer_v3(update, context):
+    poll = Utils.get_poll_data(poll_id=update.poll_answer.poll_id)
+    voter_id = update.poll_answer.user.id
+    voted_option = update.poll_answer.option_ids
+    
+    if poll:
+        if voted_option:
+            voted_option = voted_option[0]
+            is_autovote = Utils.check_autovote(voter_id, voted_option, poll)
+
+            if is_autovote:
+                voter_name = Utils.get_user_data(poll['chat_id'], voter_id, poll.doc_id)['first_name']
+                if Utils.previous_autovote(voter_id, poll):
+                    output_message = f"{voter_name}, podrías votar a otros alguna vez..."
+                else:
+                    Utils.add_vote(voter_id, voted_option, poll, is_autovote)
+                    autovote_count = Utils.autovote_count(voter_id, poll['chat_id'], poll_type=poll['type'])
+
+                    if autovote_count < MAX_AUTOVOTES_PER_WEEK:
+                        output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
+                    else:
+                        if poll['type'] == 'daily':
+                            output_message = f"{voter_name}, consumiste todos los autovotos permitidos para las diarias. No podrás subscribir mas memes por esta semana."
+                            Utils.ban_user(voter_id, poll['chat_id'], poll['week_number'])
+                        elif poll['type'] == 'champions':
+                            output_message = f"{voter_name}, utilizaste todos los autovotos permitidos para las champions. No podrás subscribir memes la próxima semana."
+                            Utils.ban_user(voter_id, poll['chat_id'], poll['week_number'] + 1)
+
+            else:
+                Utils.add_vote(voter_id, voted_option, poll, is_autovote)
+    
+    context.bot.send_message(chat_id=poll['chat_id'], text=output_message)
 
 
 def poll_results(update, context):
@@ -684,7 +726,7 @@ dispatcher.add_handler(CommandHandler('clean_history', clean_history))
 dispatcher.add_handler(CommandHandler('champions_poll', champions_poll))
 dispatcher.add_handler(CommandHandler('champions_tiebreak', champions_tiebreak))
 dispatcher.add_handler(PollHandler(receive_poll_update))
-dispatcher.add_handler(PollAnswerHandler(receive_poll_answer_v2))
+dispatcher.add_handler(PollAnswerHandler(receive_poll_answer_v3))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
 
 updater.start_polling(poll_interval=POLLING_INTERVAL, read_latency=READ_LATENCY)

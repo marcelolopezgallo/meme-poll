@@ -140,14 +140,15 @@ def check_autovote(voter_id, voted_option, poll):
 
     return True if poll_images[voted_option]['user_id'] == voter_id else False
 
-def autovote_count(voter_id, week_number=datetime.datetime.now().isocalendar()[1]):
-    polls_this_week = polls.search((Query().week_number.exists()) & (Query().week_number == week_number))
+def autovote_count(voter_id, chat_id, week_number=datetime.datetime.now().isocalendar()[1], poll_type=None):
+    polls_this_week = polls.search((Query().chat_id == chat_id) & (Query().type == poll_type) & (Query().week_number.exists()) & (Query().week_number == week_number))
     
     autovote_count = 0
     for p in polls_this_week:
         u = users.get((Query().user_id == voter_id) & (Query().poll_id == p.doc_id))
-        if u['autovote']:
-            autovote_count += 1
+        if u:
+            if u['autovote']:
+                autovote_count += 1
     
     return autovote_count
 
@@ -172,16 +173,16 @@ def retract_vote(voter_id, poll):
     return was_autovoter
 
 
-def ban_user(voter_id, poll):
+def ban_user(voter_id, chat_id, week_number):
     blocked_user_data = {
         'user_id': voter_id,
-        'chat_id': poll['chat_id'],
-        'week_number': poll['week_number'],
+        'chat_id': chat_id,
+        'week_number': week_number,
         'reason': 'superar limite de autovotos'
     }
     banned_users.insert(blocked_user_data)
 
-    logging.info(f"Banned user {voter_id} for week {poll['week_number']}")
+    logging.info(f"Banned user {voter_id} for week {week_number}")
 
 
 def user_is_banned(voter_id, week_number):
