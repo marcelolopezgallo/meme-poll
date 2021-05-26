@@ -178,52 +178,58 @@ def start_poll_v2(update, context):
     poll_in_progress, poll_type = Utils.poll_in_progress_v2(chat_id)
 
     if poll_in_progress:
-        if poll_type == 'daily':
-            poll = Utils.get_poll_data(chat_id, poll_type)
+        now = datetime.datetime.now()
+        
+        if now >= now.replace(hour=START_POLL_HOUR):
+            if poll_type == 'daily':
+                poll = Utils.get_poll_data(chat_id, poll_type)
 
-        if poll['status'] == "loading":
-            if PIN_ENABLED:
-                context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['hint_msg_id'])
-            
-            poll_images = Utils.get_participants(chat_id, poll_doc_ids=[poll.doc_id], poll_type=poll_type)
-            options = []
-            for image in poll_images:
-                first_name = Utils.get_user_data(chat_id, image['user_id'])['first_name']
-                options.append(first_name)
-                context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=image['msg_id'], allow_sending_without_reply=True)
-            
-            try:
-                today = datetime.datetime.now().strftime("%d/%m/%Y")
-                message = context.bot.send_poll(chat_id=chat_id, question=f"Meme Poll {today}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
-                logging.info("Poll started")
-
+            if poll['status'] == "loading":
                 if PIN_ENABLED:
-                    context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
-                    logging.info(f"Poll pinned")
+                    context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll['hint_msg_id'])
                 
-                Utils.update_poll(poll.doc_id, {
-                    'status': 'started',
-                    'started_by': update.message.from_user['id'],
-                    'started_at': time.time(),
-                    'poll_id': message.poll.id,
-                    'msg_id': message.message_id,
-                    'participants': [{
-                        'user_id': image['user_id'],
-                        'msg_id': image['msg_id']
-                    } for image in poll_images]
-                })
-                output_message = f"La poll fue iniciada por {nickname} y cerrara automaticamente en {int(POLL_TIMER / 60)} min."
+                poll_images = Utils.get_participants(chat_id, poll_doc_ids=[poll.doc_id], poll_type=poll_type)
+                options = []
+                for image in poll_images:
+                    first_name = Utils.get_user_data(chat_id, image['user_id'])['first_name']
+                    options.append(first_name)
+                    context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=image['msg_id'], allow_sending_without_reply=True)
                 
-                context.job_queue.run_once(first_reminder, FIRST_REMINDER, context=poll.doc_id)
-                context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll.doc_id)
+                try:
+                    today = datetime.datetime.now().strftime("%d/%m/%Y")
+                    message = context.bot.send_poll(chat_id=chat_id, question=f"Meme Poll {today}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
+                    logging.info("Poll started")
 
-            except TelegramError as e:
-                if e.message == 'Poll must have at least 2 option':
-                    output_message = "No pude iniciar la poll ya que debe haber al menos 2 participantes."
-                logging.error(e.message)
+                    if PIN_ENABLED:
+                        context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
+                        logging.info(f"Poll pinned")
+                    
+                    Utils.update_poll(poll.doc_id, {
+                        'status': 'started',
+                        'started_by': update.message.from_user['id'],
+                        'started_at': time.time(),
+                        'poll_id': message.poll.id,
+                        'msg_id': message.message_id,
+                        'participants': [{
+                            'user_id': image['user_id'],
+                            'msg_id': image['msg_id']
+                        } for image in poll_images]
+                    })
+                    output_message = f"La poll fue iniciada por {nickname} y cerrara automaticamente en {int(POLL_TIMER / 60)} min."
+                    
+                    context.job_queue.run_once(first_reminder, FIRST_REMINDER, context=poll.doc_id)
+                    context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll.doc_id)
 
-        elif poll['status'] == "started":
-            output_message = f"La poll ya fue iniciada por {Utils.get_user_data(chat_id, poll['started_by'], poll.doc_id)['first_name']}"
+                except TelegramError as e:
+                    if e.message == 'Poll must have at least 2 option':
+                        output_message = "No pude iniciar la poll ya que debe haber al menos 2 participantes."
+                    logging.error(e.message)
+
+            elif poll['status'] == "started":
+                output_message = f"La poll ya fue iniciada por {Utils.get_user_data(chat_id, poll['started_by'], poll.doc_id)['first_name']}"
+                logging.info("Poll already started")
+        else:
+            output_message = f"La poll podrá ser iniciada a partir de las {START_POLL_HOUR}"
             logging.info("Poll already started")
     else:
         output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
@@ -696,6 +702,7 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         CLEAN_HISTORY_ALLOWLIST = local_config['CLEAN_HISTORY_ALLOWLIST']
         MAX_AUTOVOTES_PER_WEEK = local_config['MAX_AUTOVOTES_PER_WEEK']
         CHAMPIONS_POLL_DAY = local_config['CHAMPIONS_POLL_DAY']
+        START_POLL_HOUR = local_config['START_POLL_HOUR']
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
