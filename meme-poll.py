@@ -71,7 +71,7 @@ def new_poll_v2(update, context):
         poll = Utils.get_poll_data(chat_id)
         if poll:
             if poll['status'] == 'loading':
-                output_message = f"Ya existe una Meme Poll abierta. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
+                output_message = f"Ya existe una Meme Poll abierta. Cargá tu meme con /new_meme. Una vez cargados los memes, comenzá la poll escribiendo /start_poll."
                 logging.info("Poll en preparacion")
             elif poll['status'] == "started":
                 output_message = f"Ya existe una poll en curso creada por {Utils.get_user_data(chat_id, poll['started_by'], poll.doc_id)['first_name']}."
@@ -80,7 +80,7 @@ def new_poll_v2(update, context):
             today = datetime.datetime.now().strftime("%d/%m/%Y")
 
             if Utils.enough_polls_for_today(chat_id, 'daily'):
-                output_message = f"{nickname}, ya hubo una poll el dia de hoy. Podras crear una nueva mañana."
+                output_message = f"{nickname}, ya hubo una poll el día de hoy. Podrás crear una nueva mañana."
                 logging.info(f"Enough polls for today")
             else:
                 is_a_new_poll = True
@@ -95,10 +95,10 @@ def new_poll_v2(update, context):
                     "current": True,
                     'poll_id': ''
                 })
-                output_message = f"Se abrio la Meme Poll {today}!. Carga tu meme con /new_meme. Una vez cargados los memes, comenza la poll escribiendo /start_poll."
+                output_message = f"Se abrió la Meme Poll {today}!. Cargá tu meme con /new_meme. Una vez cargados los memes, comenzá la poll escribiendo /start_poll."
 
     else:
-        output_message = f"{nickname}, Hoy es domingo y los domingos es día de /champions_poll."
+        output_message = f"{nickname}, Hoy es Domingo y los Domingos son días de /champions_poll."
 
     message = context.bot.send_message(chat_id=chat_id, text=output_message)
     if PIN_ENABLED and is_a_new_poll:
@@ -115,17 +115,17 @@ def new_meme_v2(update, context):
     
     if poll:
         if poll['status'] == 'started':
-            output_message = f"{nickname}, la poll ya inicio, no se pueden subscribir mas memes."
+            output_message = f"{nickname}, la poll ya inicio, no se pueden subscribir más memes."
         elif poll['status'] in ['tied', 'tiebreak']:
             output_message = f"{nickname}, no se pueden subscribir nuevos memes durante el tiebreak."
         elif poll['status'] == 'loading':
             user = Utils.get_user_data(chat_id, update.message.from_user.id, poll.doc_id)
             if user:
                 if user['status'] == 'waiting for meme':
-                    output_message = f"{nickname}, aun estoy esperando que envies tu meme."
+                    output_message = f"{nickname}, aun estoy esperando que envíes tu meme."
                     logging.info(f"Already waiting for meme: {user}")
                 elif user['status'] == "meme received":
-                    output_message = f"{nickname}, ya tenes un meme registrado para esta poll."
+                    output_message = f"{nickname}, ya tenés un meme registrado para esta poll."
                     logging.info(f"Already got meme")
             else:
                 week_number = datetime.datetime.now().isocalendar()[1]
@@ -145,7 +145,7 @@ def new_meme_v2(update, context):
                     })
                     output_message = f"Ok {nickname}, enviame tu meme!"
     else:
-        output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
+        output_message = f"{nickname}, no hay ninguna poll creada. Podés crear una con /new_poll"
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
@@ -156,16 +156,19 @@ def delete_meme(update, context):
 
     if poll_in_progress:
         poll = Utils.get_poll_data(chat_id, poll_type=poll_type)
-        user_image = Utils.get_user_image(update.message.from_user.id, poll.doc_id)
-        if user_image:
-            try:
-                Utils.delete_user_image(user_image.doc_id)
-                Utils.update_user(update.message.from_user.id, poll.doc_id, {'status': 'waiting for meme'})
-                output_message = f"Ok {Utils.get_nickname(update.message.from_user)}, tu meme fue borrado correctamente."
-            except Exception as e:
-                logging.error(f"image {user_image.doc_id} delete failed. {e}")
+        if poll['status'] == 'loading':
+            user_image = Utils.get_user_image(update.message.from_user.id, poll.doc_id)
+            if user_image:
+                try:
+                    Utils.delete_user_image(user_image.doc_id)
+                    Utils.update_user(update.message.from_user.id, poll.doc_id, {'status': 'waiting for meme'})
+                    output_message = f"Ok {Utils.get_nickname(update.message.from_user)}, tu meme fue borrado correctamente."
+                except Exception as e:
+                    logging.error(f"image {user_image.doc_id} delete failed. {e}")
+            else:
+                output_message = f"{Utils.get_nickname(update.message.from_user)}, no tenés un meme registrado en esta poll."
         else:
-            output_message = f"{Utils.get_nickname(update.message.from_user)}, no tenes un meme registrado en esta poll."
+            output_message = f"{Utils.get_nickname(update.message.from_user)}, sólo se pueden borrar memes durante la etapa de carga de memes."
     else:
         output_message = "No hay ninguna poll en curso."
     
@@ -214,7 +217,7 @@ def start_poll_v2(update, context):
                             'msg_id': image['msg_id']
                         } for image in poll_images]
                     })
-                    output_message = f"La poll fue iniciada por {nickname} y cerrara automaticamente en {int(POLL_TIMER / 60)} min."
+                    output_message = f"La poll fue iniciada por {nickname} y cerrará automáticamente en {int(POLL_TIMER / 60)} min."
                     
                     context.job_queue.run_once(first_reminder, FIRST_REMINDER, context=poll.doc_id)
                     context.job_queue.run_once(schedule_close, POLL_TIMER, context=poll.doc_id)
@@ -228,7 +231,7 @@ def start_poll_v2(update, context):
                 output_message = f"La poll ya fue iniciada por {Utils.get_user_data(chat_id, poll['started_by'], poll.doc_id)['first_name']}"
                 logging.info("Poll already started")
         else:
-            output_message = f"La poll podrá iniciarese a partir de las {START_POLL_HOUR}"
+            output_message = f"La poll podrá iniciarse a partir de las {START_POLL_HOUR}"
             logging.info("Poll already started")
     else:
         output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
@@ -269,7 +272,7 @@ def tiebreak_v2(update, context):
                 output_message = f"Error al iniciar el tiebreak: {e}"
                 logging.error(e)
         else:
-            output_message = f"No hay ninguna Champions Poll empatada."
+            output_message = f"No hay ninguna Poll empatada."
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
@@ -293,7 +296,7 @@ def cancel_poll(update, context):
             polls.update({ 'status': 'cancelled', 'cancelled_by': update.message.from_user.id, 'current': False}, doc_ids=[poll.doc_id])
             output_message = f"{nickname}, la poll fue cancelada con exito."
         else:
-            output_message = f"{nickname}, la poll solo puede ser cancelada por el usuario que la haya iniciado."
+            output_message = f"{nickname}, la poll sólo puede ser cancelada por el usuario que la haya iniciado."
     else:
         output_message = f"{nickname}, no hay ninguna poll activa para cancelar."
     
@@ -345,27 +348,30 @@ def close_poll_v2(update, context):
     poll = Utils.get_poll_data(chat_id)
     
     if poll:
-        
-        if poll['status'] in ['started', 'tiebreak']:
-            poll_message_id = poll['msg_id']
-            
-            if poll['type'] == 'daily':
-                today = datetime.datetime.now().strftime("%d/%m/%Y")
-                output_message = f"Fin de la Meme Poll {today}"
-            elif poll['type'] == 'champions':
-                week_number = datetime.datetime.now().isocalendar()[1]
-                output_message = f"Fin de la Champions Poll - Semana {week_number}"
-            
-            Utils.update_poll(poll.doc_id, {
-                'status': 'closed'
-            })
-            
-            if PIN_ENABLED:
-                context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
-                logging.info(f"Poll unpinned")
+        if time.time() < poll['started_at'] + POLL_TIMER:
+            output_message = f"La poll podrá cerrarse manualmente a partir de las {datetime.datetime.fromtimestamp(poll['started_at'] + POLL_TIMER).strftime('%H:%M')}"
+        else:
+            if poll['status'] in ['started', 'tiebreak']:
+                poll_message_id = poll['msg_id']
+                
+                if poll['type'] == 'daily':
+                    today = datetime.datetime.now().strftime("%d/%m/%Y")
+                    output_message = f"Fin de la Meme Poll {today}"
+                elif poll['type'] == 'champions':
+                    week_number = datetime.datetime.now().isocalendar()[1]
+                    output_message = f"Fin de la Champions Poll - Semana {week_number}"
+                
+                Utils.update_poll(poll.doc_id, {
+                    'status': 'closed'
+                })
+                
+                if PIN_ENABLED:
+                    context.bot.unpin_chat_message(chat_id=chat_id, message_id=poll_message_id)
+                    logging.info(f"Poll unpinned")
 
-            context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
-            logging.info(f"Poll Stopped")
+                context.bot.stop_poll(chat_id=chat_id, message_id=poll_message_id)
+                logging.info(f"Poll Stopped")
+            
     else:
         output_message = f"No hay ninguna poll iniciada."
     
@@ -399,7 +405,7 @@ def receive_poll_answer_v2(update, context):
                     if autovote_count < MAX_AUTOVOTES_PER_WEEK:
                         output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
                     else:
-                        output_message = f"{voter_name}, consumiste todos los autovotos permitidos por semana. No podras subscribir mas memes por esta semana."
+                        output_message = f"{voter_name}, consumiste todos los autovotos permitidos por semana. No podrás subscribir más memes por esta semana."
                         Utils.ban_user(voter_id, poll)
 
             else:
@@ -440,7 +446,7 @@ def receive_poll_answer_v3(update, context):
                         output_message = f"{voter_name}, consumiste {autovote_count} de los {MAX_AUTOVOTES_PER_WEEK} autovotos permitidos por semana."
                     else:
                         if poll['type'] == 'daily':
-                            output_message = f"{voter_name}, consumiste todos los autovotos permitidos para las diarias. No podrás subscribir mas memes por esta semana."
+                            output_message = f"{voter_name}, consumiste todos los autovotos permitidos para las diarias. No podrás subscribir más memes por esta semana."
                             Utils.ban_user(voter_id, poll['chat_id'], poll['week_number'])
                         elif poll['type'] == 'champions':
                             output_message = f"{voter_name}, utilizaste todos los autovotos permitidos para las champions. No podrás subscribir memes la próxima semana."
@@ -544,7 +550,7 @@ def clean_history(update, context):
         for doc in banned_users_docs:
             banned_users.remove(doc_ids=[doc.doc_id])
         
-        output_message = "Se borro el historico con exito."
+        output_message = "Se borró el histórico con exito."
     else:
         output_message = "Esta funcionalidad no está permitida para tu usuario."
 
@@ -575,7 +581,7 @@ def champions_poll(update, context):
         else:
             poll_in_progress, poll_type = Utils.poll_in_progress_v2(chat_id)
             if poll_in_progress:
-                output_message = f"Ya hay una Champions Poll en curso."
+                output_message = f"Ya existe una Champions Poll en curso."
             else:
                 week_number = datetime.datetime.now().isocalendar()[1]
                 week_winners = Utils.get_participants(chat_id, poll_type='champions', week_number=week_number)
@@ -633,7 +639,7 @@ def champions_poll(update, context):
                     logging.error(e.message)
 
     else:
-        output_message = f"Las Champion Polls son solo los Domingos."
+        output_message = f"Las Champion Polls son sólo los Domingos."
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
