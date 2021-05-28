@@ -269,7 +269,7 @@ def tiebreak_v2(update, context):
                 output_message = f"Error al iniciar el tiebreak: {e}"
                 logging.error(e)
         else:
-            output_message = f"No hay ninguna Champions Poll empatada."
+            output_message = f"No hay ninguna Poll empatada."
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
