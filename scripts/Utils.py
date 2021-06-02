@@ -197,6 +197,12 @@ def get_banned_user_data(user_id, week_number):
     return banned_user
 
 
+def get_banned_users(chat_id, week_number=datetime.datetime.now().isocalendar()[1]):
+    banned_user = banned_users.search((Query().chat_id == chat_id) & (Query().week_number == week_number))
+
+    return banned_user
+
+
 def previous_autovote(voter_id, poll):
     user = users.get((Query().user_id == voter_id) & (Query().poll_id == poll.doc_id))
 

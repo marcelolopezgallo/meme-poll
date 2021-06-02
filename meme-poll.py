@@ -685,6 +685,17 @@ def champions_tiebreak(update, context):
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
+def get_blacklist(update,context):
+    chat_id = update.effective_chat.id
+    banned_user_list = Utils.get_banned_users(chat_id)
+
+    output_message = "<b>Blacklist</b>\n\n"
+    for user in banned_user_list:
+        output_message += f"<pre>{Utils.get_user_data(chat_id, user['user_id'])['first_name']}</pre>\n"
+    
+    context.bot.send_message(chat_id=chat_id, text=output_message, parse_mode='HTML')
+
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 LOG_DIR = f"{dir_path}/log"
@@ -736,6 +747,7 @@ dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
 dispatcher.add_handler(CommandHandler('champions_poll', champions_poll))
 dispatcher.add_handler(CommandHandler('champions_tiebreak', champions_tiebreak))
+dispatcher.add_handler(CommandHandler('blacklist', get_blacklist))
 dispatcher.add_handler(PollHandler(receive_poll_update))
 dispatcher.add_handler(PollAnswerHandler(receive_poll_answer_v3))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
