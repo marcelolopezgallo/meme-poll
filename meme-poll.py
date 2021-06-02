@@ -232,7 +232,7 @@ def start_poll_v2(update, context):
                 logging.info("Poll already started")
         else:
             output_message = f"La poll podrá iniciarse a partir de las {START_POLL_HOUR}"
-            logging.info("Poll already started")
+            logging.info("Too early start_poll")
     else:
         output_message = f"{nickname}, no hay ninguna poll creada. Podes crear una con /new_poll"
     
@@ -576,67 +576,72 @@ def champions_poll(update, context):
     day = datetime.datetime.now().strftime("%A")
     
     if day == CHAMPIONS_POLL_DAY:
-        if Utils.enough_polls_for_today(chat_id, poll_type='champions'):
-            output_message = f"Ya hubo una Champions Poll el día de hoy."
-        else:
-            poll_in_progress, poll_type = Utils.poll_in_progress_v2(chat_id)
-            if poll_in_progress:
-                output_message = f"Ya existe una Champions Poll en curso."
+        now = datetime.datetime.now()
+        if now >= now.replace(hour=START_POLL_HOUR):
+            if Utils.enough_polls_for_today(chat_id, poll_type='champions'):
+                output_message = f"Ya hubo una Champions Poll el día de hoy."
             else:
-                week_number = datetime.datetime.now().isocalendar()[1]
-                week_winners = Utils.get_participants(chat_id, poll_type='champions', week_number=week_number)
-                options = []
-                for item in week_winners:
-                    first_name = Utils.get_user_data(chat_id, item['user_id'])['first_name']
-                    options.append(first_name + " " + item['date'])
-                    context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=item['msg_id'])
-                
-                try:
-                    message = context.bot.send_poll(chat_id=chat_id, question=f"Champions Poll - Semana {week_number}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
-                    if PIN_ENABLED:
-                        context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
-                        logging.info(f"Poll pinned")
+                poll_in_progress, poll_type = Utils.poll_in_progress_v2(chat_id)
+                if poll_in_progress:
+                    output_message = f"Ya existe una Champions Poll en curso."
+                else:
+                    week_number = datetime.datetime.now().isocalendar()[1]
+                    week_winners = Utils.get_participants(chat_id, poll_type='champions', week_number=week_number)
+                    options = []
+                    for item in week_winners:
+                        first_name = Utils.get_user_data(chat_id, item['user_id'])['first_name']
+                        options.append(first_name + " " + item['date'])
+                        context.bot.send_message(chat_id=chat_id, text=f"{first_name}", reply_to_message_id=item['msg_id'])
+                    
+                    try:
+                        message = context.bot.send_poll(chat_id=chat_id, question=f"Champions Poll - Semana {week_number}", is_anonymous=ANONYMOUS_POLL, allows_multiple_answers=ALLOW_MULTIPLE_ANSWERS, options=options)
+                        if PIN_ENABLED:
+                            context.bot.pin_chat_message(chat_id=chat_id, message_id=message.message_id)
+                            logging.info(f"Poll pinned")
 
-                    poll_doc_id = Utils.create_poll({
-                        "date": datetime.datetime.now().strftime("%d/%m/%Y"),
-                        "week_number": datetime.datetime.now().isocalendar()[1],
-                        "month_number": datetime.datetime.now().strftime("%d/%m/%Y").split("/")[1],
-                        "type": "champions",
-                        "chat_id": chat_id,
-                        "status": "started",
-                        "created_by": update.message.from_user.id,
-                        "started_by": update.message.from_user.id,
-                        "started_at": time.time(),
-                        "poll_id": message.poll.id,
-                        "msg_id": message.message_id,
-                        "current": True,
-                        "participants": [{
-                            'user_id': image['user_id'],
-                            'date': image['date'],
-                            'msg_id': image['msg_id']
-                        } for image in week_winners]
-                    })
+                        poll_doc_id = Utils.create_poll({
+                            "date": datetime.datetime.now().strftime("%d/%m/%Y"),
+                            "week_number": datetime.datetime.now().isocalendar()[1],
+                            "month_number": datetime.datetime.now().strftime("%d/%m/%Y").split("/")[1],
+                            "type": "champions",
+                            "chat_id": chat_id,
+                            "status": "started",
+                            "created_by": update.message.from_user.id,
+                            "started_by": update.message.from_user.id,
+                            "started_at": time.time(),
+                            "poll_id": message.poll.id,
+                            "msg_id": message.message_id,
+                            "current": True,
+                            "participants": [{
+                                'user_id': image['user_id'],
+                                'date': image['date'],
+                                'msg_id': image['msg_id']
+                            } for image in week_winners]
+                        })
 
-                    for winner in week_winners:
-                        if not Utils.get_user_data(chat_id, winner['user_id'], poll_doc_id):
-                            new_user_info = {
-                                'chat_id': chat_id,
-                                'user_id': winner['user_id'],
-                                'poll_id': poll_doc_id,
-                                'first_name': Utils.get_user_data(chat_id, winner['user_id'])['first_name'],
-                                'status': 'in champions',
-                                'autovote': False,
-                                'voted_option': None
-                            }
-                            users.insert(new_user_info)
+                        for winner in week_winners:
+                            if not Utils.get_user_data(chat_id, winner['user_id'], poll_doc_id):
+                                new_user_info = {
+                                    'chat_id': chat_id,
+                                    'user_id': winner['user_id'],
+                                    'poll_id': poll_doc_id,
+                                    'first_name': Utils.get_user_data(chat_id, winner['user_id'])['first_name'],
+                                    'status': 'in champions',
+                                    'autovote': False,
+                                    'voted_option': None
+                                }
+                                users.insert(new_user_info)
 
-                    output_message = f"Se inicio la Champions Poll - Semana {week_number}!"
-                    logging.info("Weekly poll started")
+                        output_message = f"Se inicio la Champions Poll - Semana {week_number}!"
+                        logging.info("Weekly poll started")
 
-                except TelegramError as e:
-                    if e.message == 'Poll must have at least 2 option':
-                        output_message = "No pude iniciar la poll ya que debe haber al menos 2 participantes."
-                    logging.error(e.message)
+                    except TelegramError as e:
+                        if e.message == 'Poll must have at least 2 option':
+                            output_message = "No pude iniciar la poll ya que debe haber al menos 2 participantes."
+                        logging.error(e.message)
+        else:
+            output_message = f"La Champions poll podrá iniciarse a partir de las {START_POLL_HOUR}"
+            logging.info("Too early champions_poll")
 
     else:
         output_message = f"Las Champion Polls son sólo los Domingos."
@@ -678,6 +683,17 @@ def champions_tiebreak(update, context):
         output_message = f"No hay ninguna Champions Poll empatada."
     
     context.bot.send_message(chat_id=chat_id, text=output_message)
+
+
+def get_blacklist(update,context):
+    chat_id = update.effective_chat.id
+    banned_user_list = Utils.get_banned_users(chat_id)
+
+    output_message = "<b>Blacklist</b>\n\n"
+    for user in banned_user_list:
+        output_message += f"<pre>{Utils.get_user_data(chat_id, user['user_id'])['first_name']}</pre>\n"
+    
+    context.bot.send_message(chat_id=chat_id, text=output_message, parse_mode='HTML')
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -731,6 +747,7 @@ dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
 dispatcher.add_handler(CommandHandler('champions_poll', champions_poll))
 dispatcher.add_handler(CommandHandler('champions_tiebreak', champions_tiebreak))
+dispatcher.add_handler(CommandHandler('blacklist', get_blacklist))
 dispatcher.add_handler(PollHandler(receive_poll_update))
 dispatcher.add_handler(PollAnswerHandler(receive_poll_answer_v3))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
