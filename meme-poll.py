@@ -130,7 +130,7 @@ def new_meme_v2(update, context):
             else:
                 week_number = datetime.datetime.now().isocalendar()[1]
                 
-                if Utils.user_is_banned(update.message.from_user.id, week_number):
+                if Utils.user_is_banned(update.message.from_user.id, chat_id, week_number):
                     output_message = f"{nickname}, tu usuario fue blockeado por esta semana por {Utils.get_banned_user_data(update.message.from_user.id, week_number)['reason']}."
                 else:
                     Utils.create_user({
@@ -415,7 +415,7 @@ def receive_poll_answer_v2(update, context):
             if was_autovoter:
                 week_number = datetime.datetime.now().isocalendar()[1]
                 voter_name = Utils.get_user_data(poll['chat_id'], voter_id, poll.doc_id)['first_name']
-                if Utils.user_is_banned(voter_id, week_number):
+                if Utils.user_is_banned(voter_id, poll['chat_id'], week_number):
                     Utils.unban_user(voter_id, week_number)
                     output_message = f"{voter_name}, recuperaste 1 autovoto y fuiste desbloqueado por esta semana."
                 else:
