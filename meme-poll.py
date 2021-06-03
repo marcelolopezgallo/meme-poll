@@ -696,6 +696,23 @@ def get_blacklist(update,context):
     context.bot.send_message(chat_id=chat_id, text=output_message, parse_mode='HTML')
 
 
+def my_stats(update, context):
+    chat_id = update.effective_chat.id
+    chat_id_verguenza = -1001358274916
+    output_message = f"{Utils.get_nickname(update.message.from_user)}, estas son tus estadísticas:\n\n"
+    
+    poll_count = Utils.get_poll_count(chat_id_verguenza)
+    polls_in = Utils.get_poll_participation(chat_id_verguenza, update.message.from_user.id)
+    output_message += f"Participaste en {len(polls_in)} de las {poll_count} polls.\n"
+    
+    win_list = Utils.get_win_list(chat_id_verguenza, update.message.from_user.id)
+    output_message += f"Ganaste {len(win_list)} de las {len(polls_in)} en las que participaste.\n"
+
+    output_message += f"Ganadas/Participadas: <i>{round(len(win_list) / len(polls_in) * 100, 1)}%</i>\n"
+    output_message += f"Ganadas/Total: <i>{round(len(win_list) / poll_count * 100, 1)}%</i>\n"
+    
+    context.bot.send_message(chat_id=chat_id, text=output_message, parse_mode='HTML')
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 LOG_DIR = f"{dir_path}/log"
@@ -748,6 +765,7 @@ dispatcher.add_handler(CommandHandler('clean_history', clean_history))
 dispatcher.add_handler(CommandHandler('champions_poll', champions_poll))
 dispatcher.add_handler(CommandHandler('champions_tiebreak', champions_tiebreak))
 dispatcher.add_handler(CommandHandler('blacklist', get_blacklist))
+dispatcher.add_handler(CommandHandler('my_stats', my_stats))
 dispatcher.add_handler(PollHandler(receive_poll_update))
 dispatcher.add_handler(PollAnswerHandler(receive_poll_answer_v3))
 dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
