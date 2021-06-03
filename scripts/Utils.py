@@ -185,8 +185,8 @@ def ban_user(voter_id, chat_id, week_number):
     logging.info(f"Banned user {voter_id} for week {week_number}")
 
 
-def user_is_banned(voter_id, week_number):
-    is_banned = banned_users.get((Query().user_id == voter_id) & (Query().week_number == week_number))
+def user_is_banned(voter_id, chat_id, week_number):
+    is_banned = banned_users.get((Query().user_id == voter_id) & (Query().chat_id == chat_id) & (Query().week_number == week_number))
 
     return True if is_banned else False
 
