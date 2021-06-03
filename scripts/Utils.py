@@ -270,12 +270,12 @@ def create_user(user_data):
 
 
 def get_poll_count(chat_id):
-    poll_list = polls.search((Query().chat_id == chat_id))
+    poll_list = polls.search((Query().chat_id == chat_id) & (Query().status == 'finished'))
 
     return len(poll_list)
 
 def get_poll_participation(chat_id, user_id):
-    polls_in = polls.search((Query().chat_id == chat_id) & (Query().participants.any(Query().user_id == user_id)))
+    polls_in = polls.search((Query().chat_id == chat_id) & (Query().status == 'finished') & (Query().participants.any(Query().user_id == user_id)))
 
     return polls_in
 
@@ -284,6 +284,8 @@ def get_win_list(chat_id, user_id):
     win_list = polls.search((Query().chat_id == chat_id) & (Query().winner == user_id))
 
     return win_list
+
+    
 dir_path = os.path.dirname(os.path.realpath(__file__))
 DB_DIR = f"{dir_path}/../db"
 db = TinyDB(f'{DB_DIR}/db.json')

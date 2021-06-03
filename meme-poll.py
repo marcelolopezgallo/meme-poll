@@ -698,14 +698,13 @@ def get_blacklist(update,context):
 
 def my_stats(update, context):
     chat_id = update.effective_chat.id
-    chat_id_verguenza = -1001358274916
     output_message = f"{Utils.get_nickname(update.message.from_user)}, estas son tus estadísticas:\n\n"
     
-    poll_count = Utils.get_poll_count(chat_id_verguenza)
-    polls_in = Utils.get_poll_participation(chat_id_verguenza, update.message.from_user.id)
+    poll_count = Utils.get_poll_count(chat_id)
+    polls_in = Utils.get_poll_participation(chat_id, update.message.from_user.id)
     output_message += f"Participaste en {len(polls_in)} de las {poll_count} polls.\n"
     
-    win_list = Utils.get_win_list(chat_id_verguenza, update.message.from_user.id)
+    win_list = Utils.get_win_list(chat_id, update.message.from_user.id)
     output_message += f"Ganaste {len(win_list)} de las {len(polls_in)} en las que participaste.\n"
 
     output_message += f"Ganadas/Participadas: <i>{round(len(win_list) / len(polls_in) * 100, 1)}%</i>\n"
