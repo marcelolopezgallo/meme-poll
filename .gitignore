@@ -7,3 +7,5 @@
 deploy.sh
 /scripts/__pycache__
 /test
+/scripts/Utils2.py
+meme-poll-2.0.py
