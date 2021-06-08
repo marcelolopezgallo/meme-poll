@@ -48,7 +48,13 @@ def receive_image(update, context):
 
                     output_message = f"Ok {nickname}, meme guardado!"
                 else:
-                    enable_answer = False
+                    if user['warnings'] >= MAX_WARNINGS:
+                        output_message = f"{nickname}, dejate de joder un ratito con los memes! Sólo se puede 1 por poll."
+                    else:
+                        Utils.update_user(user['user_id'], poll.doc_id, {
+                            'warnings': user['warnings'] + 1
+                        })
+                        output_message = f"{nickname}, sólo se puede enviar 1 meme por poll."
             else:
                 output_message = f"{nickname}, antes de enviar la imagen debes enviar /new_meme."
                 logging.info(f"No user created")
@@ -141,7 +147,8 @@ def new_meme_v2(update, context):
                         'first_name': update.message.from_user.first_name,
                         'status': 'waiting for meme',
                         'autovote': False,
-                        'voted_option': None
+                        'voted_option': None,
+                        'warnings': 0
                     })
                     output_message = f"Ok {nickname}, enviame tu meme!"
     else:
@@ -740,6 +747,7 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         MAX_AUTOVOTES_PER_WEEK = local_config['MAX_AUTOVOTES_PER_WEEK']
         CHAMPIONS_POLL_DAY = local_config['CHAMPIONS_POLL_DAY']
         START_POLL_HOUR = local_config['START_POLL_HOUR']
+        MAX_WARNINGS = local_config['MAX_WARNINGS']
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
