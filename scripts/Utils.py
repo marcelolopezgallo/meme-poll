@@ -197,7 +197,8 @@ def get_banned_user_data(user_id, week_number):
     return banned_user
 
 
-def get_banned_users(chat_id, week_number=datetime.datetime.now().isocalendar()[1]):
+def get_banned_users(chat_id, week_number=None):
+    week_number = week_number or datetime.datetime.now().isocalendar()[1]
     banned_user = banned_users.search((Query().chat_id == chat_id) & (Query().week_number == week_number))
 
     return banned_user
@@ -285,7 +286,14 @@ def get_win_list(chat_id, user_id):
 
     return win_list
 
+
+def generate_keyboard_markup(participants):
+    keyboard_markup = [[f'{i+1}-' + users.get(Query().user_id == p['user_id'])['first_name']] for i,p in enumerate(participants)]
+    keyboard_markup.append(['cancelar'])
     
+    return keyboard_markup
+
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 DB_DIR = f"{dir_path}/../db"
 db = TinyDB(f'{DB_DIR}/db.json')
