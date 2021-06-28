@@ -61,7 +61,10 @@ def receive_image(update, context):
         else:
             enable_answer = False
     else:
-        enable_answer = False
+        if update.message.from_user.id in IMAGE_WITH_NO_POLL_BLACKLIST:
+            output_message = f"{nickname}, dejate de joder con los memes por fuera de la poll."
+        else:
+            enable_answer = False
         
     if enable_answer:
         context.bot.send_message(chat_id=chat_id, text=output_message)
@@ -748,6 +751,7 @@ if os.path.exists(LOCAL_CONFIG_PATH):
         CHAMPIONS_POLL_DAY = local_config['CHAMPIONS_POLL_DAY']
         START_POLL_HOUR = local_config['START_POLL_HOUR']
         MAX_WARNINGS = local_config['MAX_WARNINGS']
+        IMAGE_WITH_NO_POLL_BLACKLIST = local_config['IMAGE_WITH_NO_POLL_BLACKLIST']
 
 DB_DIR = f"{dir_path}/db"
 if not os.path.exists(DB_DIR):
