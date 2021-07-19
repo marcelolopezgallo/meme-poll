@@ -723,10 +723,10 @@ def my_stats(update, context):
     context.bot.send_message(chat_id=chat_id, text=output_message, parse_mode='HTML')
 
 
-def out_of_service(update, context):
+def holidays(update, context):
     chat_id = update.effective_chat.id
     nickname = Utils.get_nickname(update.message.from_user)
-    output_message = f"{nickname}, se consumió el máximo de 300 memes gratuitos. Contratá 100 memes extra por solo U$S9.99."
+    output_message = f"{nickname}, la meme-poll se encuentra fuera de servicio actualmente."
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
 
@@ -771,22 +771,30 @@ images = db.table('images')
 polls = db.table('polls')
 banned_users = db.table('banned_users')
 
+# dispatcher.add_handler(CommandHandler('start', start))
+# dispatcher.add_handler(CommandHandler('new_poll', new_poll_v2))
+# dispatcher.add_handler(CommandHandler('new_meme', new_meme_v2))
+# dispatcher.add_handler(CommandHandler('delete_meme', delete_meme))
+# dispatcher.add_handler(CommandHandler('start_poll', start_poll_v2))
+# dispatcher.add_handler(CommandHandler('close_poll', close_poll_v2))
+# dispatcher.add_handler(CommandHandler('tiebreak', tiebreak_v2))
+# dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
+# dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
+# dispatcher.add_handler(CommandHandler('clean_history', clean_history))
+# dispatcher.add_handler(CommandHandler('champions_poll', champions_poll))
+# dispatcher.add_handler(CommandHandler('champions_tiebreak', champions_tiebreak))
+# dispatcher.add_handler(CommandHandler('blacklist', get_blacklist))
+# dispatcher.add_handler(CommandHandler('my_stats', my_stats))
+# dispatcher.add_handler(PollHandler(receive_poll_update))
+# dispatcher.add_handler(PollAnswerHandler(receive_poll_answer_v3))
+# dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
+
 dispatcher.add_handler(CommandHandler('start', start))
-dispatcher.add_handler(CommandHandler('new_poll', new_poll_v2))
-dispatcher.add_handler(CommandHandler('new_meme', new_meme_v2))
-dispatcher.add_handler(CommandHandler('delete_meme', delete_meme))
-dispatcher.add_handler(CommandHandler('start_poll', start_poll_v2))
-dispatcher.add_handler(CommandHandler('close_poll', close_poll_v2))
-dispatcher.add_handler(CommandHandler('tiebreak', tiebreak_v2))
-dispatcher.add_handler(CommandHandler('cancel_poll', cancel_poll))
+dispatcher.add_handler(CommandHandler('new_poll', holidays))
 dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
-dispatcher.add_handler(CommandHandler('champions_poll', champions_poll))
-dispatcher.add_handler(CommandHandler('champions_tiebreak', champions_tiebreak))
 dispatcher.add_handler(CommandHandler('blacklist', get_blacklist))
 dispatcher.add_handler(CommandHandler('my_stats', my_stats))
-dispatcher.add_handler(PollHandler(receive_poll_update))
-dispatcher.add_handler(PollAnswerHandler(receive_poll_answer_v3))
-dispatcher.add_handler(MessageHandler(Filters.photo, receive_image))
+
 
 updater.start_polling(poll_interval=POLLING_INTERVAL, read_latency=READ_LATENCY)
