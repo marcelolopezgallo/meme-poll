@@ -5,6 +5,7 @@ import os
 import json
 import time
 import datetime
+import random
 
 from decouple import config
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PollHandler, PollAnswerHandler
@@ -729,7 +730,32 @@ def holidays(update, context):
     output_message = f"{nickname}, la meme-poll se encuentra fuera de servicio actualmente."
     context.bot.send_message(chat_id=chat_id, text=output_message)
 
+def revival(update, context):
+    chat_id = update.effective_chat.id
+    nickname = Utils.get_nickname(update.message.from_user)
+    user_id = update.message.from_user.id
 
+    win_list = Utils.get_win_list(chat_id, user_id)
+    win_msg_list = [[p['msg_id'] for p in poll['participants'] if p['user_id'] == user_id][0] for poll in win_list if poll['participants']]
+
+    try:
+        msg_id = random.choice(win_msg_list)
+    except Exception as ie:
+        if ie.args[0] == "Cannot choose from an empty sequence":
+            output_message = f'Lo lamento {nickname}, no ganaste ninguna poll.'
+            context.bot.send_message(chat_id=chat_id, text=output_message)
+    
+    texts = ['Fuaaa! que meme mandaste ese día', 'Te acordás de este meme?', 'Tremendo meme!', 'Cómo ganaste con este meme? HDP']
+    output_message = f"{nickname}, {random.choice(texts)}"
+
+    try:
+        context.bot.send_message(chat_id=chat_id, text=output_message, reply_to_message_id=msg_id)
+    except TelegramError as e:
+        if e.message == 'Replied message not found':
+            output_message = "Puede que alguno de tus memes se haya borrado del chat. Probá con otro /revival."
+            context.bot.send_message(chat_id=chat_id, text=output_message)
+        logging.error(e.message)
+    
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 LOG_DIR = f"{dir_path}/log"
@@ -795,6 +821,7 @@ dispatcher.add_handler(CommandHandler('hall_of_fame', hall_of_fame))
 dispatcher.add_handler(CommandHandler('clean_history', clean_history))
 dispatcher.add_handler(CommandHandler('blacklist', get_blacklist))
 dispatcher.add_handler(CommandHandler('my_stats', my_stats))
+dispatcher.add_handler(CommandHandler('revival', revival))
 
 
 updater.start_polling(poll_interval=POLLING_INTERVAL, read_latency=READ_LATENCY)
